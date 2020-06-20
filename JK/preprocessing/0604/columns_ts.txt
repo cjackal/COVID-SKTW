@@ -1,0 +1,1 @@
+['cases', 'deaths', 'm50', 'm50_index', 'seasonality', 'emergency', 'safeathome', 'business']

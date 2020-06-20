@@ -1,0 +1,2 @@
+model_checkpoint_path: "LSTM_mult_hist_size_7_weights"
+all_model_checkpoint_paths: "LSTM_mult_hist_size_7_weights"

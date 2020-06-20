@@ -1,0 +1,130 @@
+06001 Alameda County
+06013 Contra Costa County
+06037 Los Angeles County
+06067 Sacramento County
+06081 San Mateo County
+06085 Santa Clara County
+08014
+09001 Fairfield County
+09003 Hartford County
+09009 New Haven County
+10003 New Castle County
+12011 Broward County
+12031 Duval County
+12057 Hillsborough County
+12071 Lee County
+12086 Miami-Dade County
+12095 Orange County
+12103 Pinellas County
+12117 Seminole County
+13063 Clayton County
+13067 Cobb County
+13089
+13117 Forsyth County
+13121 Fulton County
+13135 Gwinnett County
+13215 Muscogee County
+17043
+17089 Kane County
+17097 Lake County
+17197 Will County
+18089 Lake County
+18097 Marion County
+20091 Johnson County
+21111 Jefferson County
+21117 Kenton County
+22033 East Baton Rouge Parish
+22051 Jefferson Parish
+22071 Orleans Parish
+24003 Anne Arundel County
+24005 Baltimore County
+24027 Howard County
+24031 Montgomery County
+24033 Prince George's County
+25005 Bristol County
+25009 Essex County
+25017 Middlesex County
+25021 Norfolk County
+26099 Macomb County
+26125 Oakland County
+26163 Wayne County
+27003 Anoka County
+27053 Hennepin County
+27123 Ramsey County
+29095 Jackson County
+29189 St. Louis County
+31055 Douglas County
+34007 Camden County
+34015 Gloucester County
+34021 Mercer County
+34023 Middlesex County
+34025 Monmouth County
+34027 Morris County
+34029 Ocean County
+34031 Passaic County
+34035 Somerset County
+36029 Erie County
+36055 Monroe County
+36087 Rockland County
+36103 Suffolk County
+36119 Westchester County
+37063 Durham County
+37119 Mecklenburg County
+37129 New Hanover County
+37183 Wake County
+39017 Butler County
+39035 Cuyahoga County
+39049 Franklin County
+39061 Hamilton County
+39085 Lake County
+39095 Lucas County
+39113 Montgomery County
+39153 Summit County
+40109 Oklahoma County
+40143 Tulsa County
+41051 Multnomah County
+42003 Allegheny County
+42017 Bucks County
+42045 Delaware County
+42077 Lehigh County
+42091 Montgomery County
+42095 Northampton County
+44001 Bristol County
+44003 Kent County
+44005 Newport County
+44007 Providence County
+47157 Shelby County
+48029 Bexar County
+48085 Collin County
+48113 Dallas County
+48141 El Paso County
+48167 Galveston County
+48201 Harris County
+48439 Tarrant County
+48453 Travis County
+49011 Davis County
+49035 Salt Lake County
+51059 Fairfax County
+51087 Henrico County
+51153 Prince William County
+51520 Bristol city
+51530 Buena Vista city
+51570 Colonial Heights city
+51580 Covington city
+51600 Fairfax city
+51650 Hampton city
+51660 Harrisonburg city
+51670 Hopewell city
+51678 Lexington city
+51680 Lynchburg city
+51690 Martinsville city
+51700 Newport News city
+51740 Portsmouth city
+51750 Radford city
+51760 Richmond city
+51770 Roanoke city
+51790 Staunton city
+51810 Virginia Beach city
+51820 Waynesboro city
+51830 Williamsburg city
+53033 King County

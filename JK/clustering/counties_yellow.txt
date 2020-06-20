@@ -1,0 +1,27 @@
+06059 Orange County
+06075 San Francisco County
+08031 Denver County
+11001 District of Columbia
+17031 Cook County
+24510 Baltimore city
+25025 Suffolk County
+29510 St. Louis city
+34003 Bergen County
+34013 Essex County
+34017 Hudson County
+34039 Union County
+36005 Bronx County
+36047 Kings County
+36059 Nassau County
+36061 New York County
+36081 Queens County
+36085 Richmond County
+42101 Philadelphia County
+51013 Arlington County
+51510 Alexandria city
+51540 Charlottesville city
+51610 Falls Church city
+51683 Manassas city
+51685 Manassas Park city
+51710 Norfolk city
+55079 Milwaukee County

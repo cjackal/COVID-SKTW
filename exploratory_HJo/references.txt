@@ -1,0 +1,21 @@
+Prophet installation
+run "conda install -c conda-forge fbprophet" on cmd, if "pip install fbprophet" doesn't work on windows
+https://github.com/facebook/prophet/issues/722
+https://github.com/facebook/prophet/issues/2
+
+Error metric: RMSE, MAE, MAPE
+https://medium.com/analytics-vidhya/forecast-kpi-rmse-mae-mape-bias-cdc5703d242d
+
+timeseries forecasting with LSTM
+https://www.tensorflow.org/tutorials/structured_data/time_series
+
+Tensorflow - ValueError: Failed to convert a NumPy array to a Tensor (Unsupported object type float)
+float64 is not supported in TensorFlow. Convert it into floast32 with .astype(np.float32)
+https://stackoverflow.com/questions/58636087/tensorflow-valueerror-failed-to-convert-a-numpy-array-to-a-tensor-unsupporte
+
+custom poisson loss function
+Prevent taking log value from negative values or zeros by defining it as follows:
+def poisson(y_true, y_pred): return K.mean(K.maximum(.0, y_pred) - y_true * K.log(K.maximum(.0, y_pred) + K.epsilon()), axis=-1)
+
+quantile estimation by neural network
+https://towardsdatascience.com/deep-quantile-regression-c85481548b5a

@@ -1,0 +1,3 @@
+[submodule "caltech_covid_19_modeling"]
+	path = caltech_covid_19_modeling
+	url = https://github.com/quantummind/caltech_covid_19_modeling.git

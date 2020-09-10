@@ -137,13 +137,13 @@ def prediction_to_submission(dfs, base='/sample_submission.csv', fipslabel='fips
         arr = np.take_along_axis(arr, np.argsort(arr, axis=1), axis=1)
         df = pd.DataFrame(arr, index=df.index, columns=df.columns)
 
-    df_base = pd.read_csv(f'{homedir}'+base)
+    df_base = pd.read_csv(base)
     df_base.set_index('id', inplace=True)
     df_base.update(df)
     
     return df_base.reset_index()
 
-def gen_submission(date_st, date_ed, path='/LSTM/preprocessing/sample_submission.csv', FIPS='/misc/FIPS_mapping.txt'):
+def gen_submission(date_st, date_ed, path='/LSTM/preprocessing/sample_submission.csv', FIPS='/misc/FIPS_mapping.txt', file=True):
     import pandas as pd
     homedir = get_homedir()
 
@@ -155,4 +155,7 @@ def gen_submission(date_st, date_ed, path='/LSTM/preprocessing/sample_submission
     column = [str(10*i) for i in range(1,10)]
     df = pd.DataFrame(0.00, index=ind, columns=column).reset_index()
     df.rename(columns={'index':'id'}, inplace=True)
-    df.to_csv(f'{homedir}'+path, index=False)
+    if file:
+        df.to_csv(path, index=False)
+    else:
+        return df

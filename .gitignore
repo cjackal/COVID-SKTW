@@ -1,3 +1,8 @@
+# Custom gitignore
+LSTM/log/
+LSTM/prediction/
+LSTM/preprocessing/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

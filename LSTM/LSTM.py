@@ -1,4 +1,6 @@
 import platform
+import random
+import logging
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
@@ -9,6 +11,8 @@ quantileList = np.linspace(0.1, 0.9, 9)
 if platform.system()=='Linux': ### In a session
     import matplotlib
     matplotlib.use('Agg')
+
+logger = logging.getLogger("main.trainer.LSTM")
 
 class LRFinder(tf.keras.callbacks.Callback):
     """Callback that exponentially adjusts the learning rate after each training batch between start_lr and
@@ -75,8 +79,8 @@ class ConditionalRNN(tf.keras.layers.Layer):
     Credit to Philippe Rémy(https://github.com/philipperemy/cond_rnn.git)
     """
     # Arguments to the RNN like return_sequences, return_state...
-    def __init__(self, units, cell=tf.keras.layers.LSTMCell, dropout=0.0, *args,
-                 **kwargs):
+    def __init__(self, units, cell=tf.keras.layers.LSTMCell, categorical_dropout=0.0, timeseries_dropout=0.0, test=False,
+                *args, **kwargs):
         """
         Conditional RNN. Conditions time series on categorical data.
         :param units: int, The number of units in the RNN Cell
@@ -89,6 +93,7 @@ class ConditionalRNN(tf.keras.layers.Layer):
         self.units = units
         self.final_states = None
         self.init_state = None
+        self.test = test
         if isinstance(cell, str):
             if cell.upper() == 'GRU':
                 cell = tf.keras.layers.GRUCell
@@ -98,9 +103,9 @@ class ConditionalRNN(tf.keras.layers.Layer):
                 cell = tf.keras.layers.SimpleRNNCell
             else:
                 raise Exception('Only GRU, LSTM and RNN are supported as cells.')
-        self._cell = cell if hasattr(cell, 'units') else cell(units=units)
+        self._cell = cell if hasattr(cell, 'units') else cell(units=units, dropout=timeseries_dropout)
         self.rnn = tf.keras.layers.RNN(cell=self._cell, *args, **kwargs)
-        self.dropout = tf.keras.layers.Dropout(dropout)
+        self.dropout = tf.keras.layers.Dropout(categorical_dropout)
 
         # single cond
         self.cond_to_init_state_dense_1 = tf.keras.layers.Dense(units=self.units, *args, **kwargs)
@@ -144,43 +149,81 @@ class ConditionalRNN(tf.keras.layers.Layer):
         assert isinstance(inputs, list) and len(inputs) >= 2, f"{inputs}"
         x = inputs[0]
         cond = inputs[1:]
-        if len(cond) > 1:  # multiple conditions.
-            init_state_list = []
-            for ii, c in enumerate(cond):
-                init_state_list.append(self.multi_cond_to_init_state_dense[ii](self._standardize_condition(c)))
-            multi_cond_state = self.multi_cond_p(tf.stack(init_state_list, axis=-1))
-            multi_cond_state = tf.squeeze(multi_cond_state, axis=-1)
-            self.init_state = tf.unstack(multi_cond_state, axis=0)
+        if self.test:
+            out = self.rnn(x, *args, **kwargs)
+            if self.rnn.return_state:
+                outputs, h, c = out
+                final_states = tf.stack([h, c])
+                return outputs, final_states
+            else:
+                return out
         else:
-            cond = self._standardize_condition(cond[0])
-            if cond is not None:
-                self.init_state = self.cond_to_init_state_dense_1(cond)
-                self.init_state = tf.unstack(self.init_state, axis=0)
-        for i in range(2):
-            self.init_state[i] = self.dropout(self.init_state[i])
-        out = self.rnn(x, initial_state=self.init_state, *args, **kwargs)
-        if self.rnn.return_state:
-            outputs, h, c = out
-            final_states = tf.stack([h, c])
-            return outputs, final_states
-        else:
-            return out
+            if len(cond) > 1:  # multiple conditions.
+                init_state_list = []
+                for ii, c in enumerate(cond):
+                    init_state_list.append(self.multi_cond_to_init_state_dense[ii](self._standardize_condition(c)))
+                multi_cond_state = self.multi_cond_p(tf.stack(init_state_list, axis=-1))
+                multi_cond_state = tf.squeeze(multi_cond_state, axis=-1)
+                self.init_state = tf.unstack(multi_cond_state, axis=0)
+            else:
+                cond = self._standardize_condition(cond[0])
+                if cond is not None:
+                    self.init_state = self.cond_to_init_state_dense_1(cond)
+                    self.init_state = tf.unstack(self.init_state, axis=0)
+            for i in range(2):
+                self.init_state[i] = self.dropout(self.init_state[i])
+            out = self.rnn(x, initial_state=self.init_state, *args, **kwargs)
+            if self.rnn.return_state:
+                outputs, h, c = out
+                final_states = tf.stack([h, c])
+                return outputs, final_states
+            else:
+                return out
 
 class SingleLayerConditionalRNN(tf.keras.Model):
-    def __init__(self, NUM_CELLS, target_size, dropout, quantiles, **kwargs):
+    def __init__(self, NUM_CELLS, target_size, quantiles=quantileList, categorical_dropout=0.0, timeseries_dropout=0.0,
+                                                                cell='LSTM', sigma=1., mu=0., test=False, **kwargs):
         super().__init__()
         self.quantiles = quantiles
-        self.layer1 = ConditionalRNN(NUM_CELLS, cell='LSTM', dropout=dropout, **kwargs)
+        self.target_size = target_size
+        self.layer1 = ConditionalRNN(NUM_CELLS, cell=cell, categorical_dropout=categorical_dropout,
+                                                        timeseries_dropout=timeseries_dropout, test=test, **kwargs)
         # self.layer2 = tf.keras.layers.Dropout(dropout)
-        self.outs = [tf.keras.layers.Dense(target_size) for q in quantiles]
-        self.out = tf.keras.layers.Concatenate()
+        self.outs = [tf.keras.layers.Dense(self.target_size) for q in quantiles]
+        self.conc = tf.keras.layers.Concatenate()
+        self.rescale = Rescale_Transpose(sigma=sigma, mu=mu)
+        self.relu = tf.keras.layers.LeakyReLU(alpha=0.05)
+        self.out = tf.keras.layers.Reshape((len(self.quantiles), self.target_size))
 
     def call(self, inputs, **kwargs):
         o = self.layer1(inputs)
         # o = self.layer2(o)
         o = [self.outs[_](o) for _ in range(len(self.quantiles))]
+        o = self.conc(o)
+        o = self.rescale(o)
+        o = self.relu(o)
         o = self.out(o)
         return o
+
+class Rescale_Transpose(tf.keras.layers.Layer):
+    def __init__(self, sigma=1., mu=0., name=None, **kwargs):
+        super().__init__(name=name, **kwargs)
+        self.sigma = sigma
+        self.mu = mu
+
+    def call(self, inputs):
+        dtype = self._compute_dtype
+        sigma = tf.cast(self.sigma, dtype)
+        mu = tf.cast(self.mu, dtype)
+        return sigma * inputs + mu
+
+    def compute_output_shape(self, input_shape):
+        return input_shape
+
+    def get_config(self):
+        config = {'sigma': self.sigma, 'mu': self.mu}
+        base_config = super().get_config()
+        return dict(list(base_config.items()) + list(config.items()))
 
 def _get_TRAIN_SPLIT(history_size, target_size, total_size, split_ratio=0.2):
     """
@@ -205,7 +248,7 @@ def _get_TRAIN_SPLIT(history_size, target_size, total_size, split_ratio=0.2):
 
     return int((1-split_ratio)*(total_size-target_size+1)-(1-2*split_ratio)*history_size)+1
 
-def train_val_split(data_ts, data_ctg, target_idx, history_size, target_size, split_ratio=None, step_size=1):
+def train_val_split(data_ts, data_ctg, target_idx, history_size, target_size, split_ratio=None, step_size=1, axis='time'):
     """
     Train-validation split.
 
@@ -231,29 +274,54 @@ def train_val_split(data_ts, data_ctg, target_idx, history_size, target_size, sp
         Timeseries, categorical, and target validation data.
     """
     total_size = len(data_ts[0])
-    if split_ratio is None:
-        TRAIN_SPLIT = total_size - history_size - target_size
-    else:
-        TRAIN_SPLIT = _get_TRAIN_SPLIT(history_size, target_size, total_size, split_ratio=split_ratio)
-    print('TRAIN_SPLIT:', TRAIN_SPLIT)
 
     assert len(data_ts)==len(data_ctg), "Length of timeseries and categorical data do not match."
 
-    X_train, y_train = [], []
-    X_val, y_val = [], []
-    C_train, C_val = [], []
+    if axis=='fips':
+        if split_ratio is None:
+            val_size = 1
+        else:
+            val_size = max(1, int(split_ratio * len(data_ts) // 1))
+        val_set = random.sample(range(len(data_ts)), val_size)
 
-    for fips in range(len(data_ts)):
-        for i in range(history_size, TRAIN_SPLIT, step_size):
-            X_train.append(data_ts[fips][i-history_size:i, :])
-            y_train.append(data_ts[fips][i:i+target_size, target_idx])
-            C_train.append(data_ctg[fips])
-        for i in range(TRAIN_SPLIT+history_size, total_size-target_size+1, step_size):
-            X_val.append(data_ts[fips][i-history_size:i, :])
-            y_val.append(data_ts[fips][i:i+target_size, target_idx])
-            C_val.append(data_ctg[fips])
+        X_train, X_val = [], []
+        y_train, y_val = [], []
+        C_train, C_val = [], []
 
-    return np.asarray(X_train), np.asarray(y_train), np.asarray(X_val), np.asarray(y_val), np.asarray(C_train), np.asarray(C_val)
+        for fips in range(len(data_ts)):
+            if fips not in val_set:
+                for i in range(history_size, total_size-target_size+1, step_size):
+                    X_train.append(data_ts[fips][i-history_size:i, :])
+                    C_train.append(data_ctg[fips])
+                    y_train.append(data_ts[fips][i:i+target_size, target_idx])
+            else:
+                for i in range(history_size, total_size-target_size+1, step_size):
+                    X_val.append(data_ts[fips][i-history_size:i, :])
+                    C_val.append(data_ctg[fips])
+                    y_val.append(data_ts[fips][i:i+target_size, target_idx])
+    
+    else:
+        if split_ratio is None:
+            TRAIN_SPLIT = total_size - history_size - target_size
+        else:
+            TRAIN_SPLIT = _get_TRAIN_SPLIT(history_size, target_size, total_size, split_ratio=split_ratio)
+        print('TRAIN_SPLIT:', TRAIN_SPLIT)
+
+        X_train, y_train = [], []
+        X_val, y_val = [], []
+        C_train, C_val = [], []
+
+        for fips in range(len(data_ts)):
+            for i in range(history_size, TRAIN_SPLIT, step_size):
+                X_train.append(data_ts[fips][i-history_size:i, :])
+                C_train.append(data_ctg[fips])
+                y_train.append(data_ts[fips][i:i+target_size, target_idx])
+            for i in range(TRAIN_SPLIT+history_size, total_size-target_size+1, step_size):
+                X_val.append(data_ts[fips][i-history_size:i, :])
+                C_val.append(data_ctg[fips])
+                y_val.append(data_ts[fips][i:i+target_size, target_idx])
+
+    return np.asarray(X_train), np.asarray(C_train), np.asarray(y_train), np.asarray(X_val), np.asarray(C_val), np.asarray(y_val)
 
 def train_full(data_ts, data_ctg, target_idx, history_size, target_size, step_size=1):
     """
@@ -280,15 +348,15 @@ def train_full(data_ts, data_ctg, target_idx, history_size, target_size, step_si
 
     assert len(data_ts)==len(data_ctg), "Length of timeseries and categorical data do not match."
 
-    X_train, y_train, C_train= [], [], []
+    X_train, C_train, y_train = [], [], []
 
     for fips in range(len(data_ts)):
         for i in range(history_size, total_size-target_size+1, step_size):
             X_train.append(data_ts[fips][i-history_size:i, :])
-            y_train.append(data_ts[fips][i:i+target_size, target_idx])
             C_train.append(data_ctg[fips])
+            y_train.append(data_ts[fips][i:i+target_size, target_idx])
 
-    return np.asarray(X_train), np.asarray(y_train), np.asarray(C_train)
+    return np.asarray(X_train), np.asarray(C_train), np.asarray(y_train)
 
 def get_StandardScaler(X_train, X_ctg):
     """
@@ -308,7 +376,7 @@ def get_StandardScaler(X_train, X_ctg):
 
     return scaler_ts, scaler_ctg
 
-def normalizer(scaler, X, y=None, target_idx=None):
+def normalizer(scaler, X):
     """
     Z-score the data.
 
@@ -317,26 +385,19 @@ def normalizer(scaler, X, y=None, target_idx=None):
         Fitted StandardScaler object.
       X: numpy ndarray
         Either timeseries or categorical data.
-      y: numpy ndarray (default=None)
-        Target data.
-      target_idx: int (default=None)
-        Index of the target feature in X.
     
     Return:
-      Z-scored X (and y if target_idx is given)
+      Z-scored X
     """
-    if target_idx is None:
+    if len(X.shape)==2:
         X = scaler.transform(X)
-        return X
-    else:
-        mu, sigma = scaler.mean_[target_idx], scaler.scale_[target_idx]
-
+    elif len(X.shape)==3:
         X = np.asarray(np.vsplit(scaler.transform(np.vstack(X)), len(X)))
-        y = (y - mu) / sigma
-    
-        return X, y
+    else:
+        raise ValueError(f"Incompatible dimension of input ndarray. Input dimension: {len(X)}")
+    return X
 
-def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, BATCH_SIZE=64, BUFFER_SIZE=10000):
+def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, BATCH_SIZE=64, BUFFER_SIZE=100000, cache=True):
     """
     Generate training and validation datasets in the format of tensorflow Dataset class.
 
@@ -351,6 +412,8 @@ def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, 
         Oftentimes smaller BATCH_SIZE perform better.
       BUFFER_SIZE: int (default=10000)
         Size of buffer. Determines the quality of permutation.
+      cache: bool (default=True)
+        True if cache training data on the memory. Turn it False if there is memory issue.
 
     Return:
       train_data, val_data: tensorflow Dataset
@@ -359,7 +422,10 @@ def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, 
     C_tr_data = tf.data.Dataset.from_tensor_slices(C_train)
     y_tr_data = tf.data.Dataset.from_tensor_slices(y_train)
     train_data = tf.data.Dataset.zip(((X_tr_data, C_tr_data), y_tr_data))
-    train_data = train_data.cache().shuffle(BUFFER_SIZE).batch(BATCH_SIZE).repeat()
+    if cache:
+        train_data = train_data.cache().shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
+    else:
+        train_data = train_data.shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
     if X_val is None:
         return train_data
     else:
@@ -367,11 +433,11 @@ def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, 
         C_v_data = tf.data.Dataset.from_tensor_slices(C_val)
         y_v_data = tf.data.Dataset.from_tensor_slices(y_val)
         val_data = tf.data.Dataset.zip(((X_v_data, C_v_data), y_v_data))
-        val_data = val_data.shuffle(BUFFER_SIZE).batch(BATCH_SIZE).repeat()
+        val_data = val_data.shuffle(BUFFER_SIZE).batch(BATCH_SIZE)
         
         return train_data, val_data
 
-def quantileLoss(quantile, y_p, y):
+def quantileLoss(quantile, y, y_p):
     """
     Custum loss function for quantile forecast models.
     Intended usage:
@@ -382,10 +448,10 @@ def quantileLoss(quantile, y_p, y):
       quantile: float in [0,1]
         Quantile number.
     """
-    e = y_p - y
+    e = y - y_p
     return tf.math.reduce_mean(tf.math.maximum(quantile*e, (quantile-1)*e))
 
-def MultiQuantileLoss(quantiles, target_size, y_p, y):
+def MultiQuantileLoss(quantiles, target_size, y, y_p):
     """
     quantileLoss adapted for multi-output conditional RNN.
 
@@ -398,10 +464,10 @@ def MultiQuantileLoss(quantiles, target_size, y_p, y):
     # assert y_p.shape[-1] == y.shape[-1]*len(quantiles), f"{y_p.shape}, {y.shape}"
     # a = tf.reshape(y_p, [len(quantiles)]+y.shape)
 
-    a = [y[:,_*target_size:(_+1)*target_size] for _ in range(len(quantiles))]
-    return tf.math.reduce_mean([quantileLoss(quantiles[_], y_p, a[_]) for _ in range(len(a))])
+    # a = [y[:,_*target_size:(_+1)*target_size] for _ in range(len(quantiles))]
+    return tf.math.reduce_mean(tf.stack([quantileLoss(quantiles[_], y, y_p[:, _, :]) for _ in range(len(quantiles))]))
 
-def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp=0.2, monitor=False, callbacks=None, **kwargs):
+def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp_ctg=0.2, dp_ts=0.2, monitor=False, callbacks=None, **kwargs):
     """
     Build and fit the conditional LSTM model.
 
@@ -432,15 +498,26 @@ def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp=0
         List of the history of model fitting.
     """
     target_size = train_data.element_spec[1].shape[1]
-    
-    model_qntl = [SingleLayerConditionalRNN(NUM_CELLS, target_size, dropout=dp) for _ in range(len(quantileList))]
+
+    celltype = kwargs["cell"] if "cell" in kwargs else "LSTM"
+    mu = kwargs["mu"] if "mu" in kwargs else 0
+    sigma = kwargs["sigma"] if "sigma" in kwargs else 1
+    for key in ["cell", "mu", "sigma"]:
+        try:
+            del kwargs[key]
+        except KeyError:
+            continue
+
+    model_qntl = [SingleLayerConditionalRNN(NUM_CELLS, target_size, categorical_dropout=dp_ctg, timeseries_dropout=dp_ts, 
+                                                        cell=celltype, sigma=sigma, mu=mu) for _ in range(len(quantileList))]
     history_qntl =[]
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
     for i in range(len(quantileList)):
-        model_qntl[i].compile(optimizer=optimizer, loss=lambda y_p, y: quantileLoss(quantileList[i], y_p, y))
+        model_qntl[i].compile(optimizer=optimizer, loss=lambda y, y_p: quantileLoss(quantileList[i], y, y_p))
         print(f'Quantile={10*(i+1)} is trained')
 
+    for i in range(len(quantileList)):
         if val_data is None:
             history = model_qntl[i].fit(train_data, epochs=EPOCHS, steps_per_epoch=2500, callbacks=callbacks, **kwargs)
         else:
@@ -453,7 +530,7 @@ def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp=0
     else:
         return model_qntl
 
-def LSTM_fit_mult(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp=0.2, monitor=False, callbacks=None, **kwargs):
+def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbacks=None, test=False, **kwargs):
     """
     Build and fit the multi-output conditional LSTM model.
 
@@ -484,18 +561,38 @@ def LSTM_fit_mult(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10,
         The history of model fitting.
     """
     target_size = train_data.element_spec[1].shape[1]
-    
-    model = SingleLayerConditionalRNN(NUM_CELLS, target_size, dropout=dp, quantiles=quantileList)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
-    model.compile(optimizer=optimizer, loss=lambda y_p, y: MultiQuantileLoss(quantileList, target_size, y_p, y))
-    print('Training multi-output model.')
+    celltype = kwargs["cell"] if "cell" in kwargs else "LSTM"
+    mu = kwargs["mu"] if "mu" in kwargs else 0
+    sigma = kwargs["sigma"] if "sigma" in kwargs else 1
+    for key in ["cell", "mu", "sigma"]:
+        try:
+            del kwargs[key]
+        except KeyError:
+            continue
+
+    hparam_default = {
+        "lr": 0.001,
+        "NUM_CELLS": 128,
+        "EPOCHS": 10,
+        "dp_ctg": 0.2,
+        "dp_ts": 0.2
+    }
+    if hparam is None: hparam = hparam_default
+    for key in hparam_default:
+        if key not in hparam: hparam[key] = hparam_default[key]
+
+    model = SingleLayerConditionalRNN(hparam["NUM_CELLS"], target_size, categorical_dropout=hparam["dp_ctg"],
+                                        timeseries_dropout=hparam["dp_ts"], cell=celltype, sigma=sigma, mu=mu, test=test)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=hparam["lr"])
+
+    model.compile(optimizer=optimizer, loss=lambda y, y_p: MultiQuantileLoss(quantileList, target_size, y, y_p))
+    logger.info('Training multi-output model.')
 
     if val_data is None:
-        history = model.fit(train_data, epochs=EPOCHS, steps_per_epoch=2500, callbacks=callbacks, **kwargs)
+        history = model.fit(train_data, epochs=hparam["EPOCHS"], callbacks=callbacks, **kwargs)
     else:
-        history = model.fit(train_data, epochs=EPOCHS, steps_per_epoch=2500, validation_data=val_data,
-                                    validation_steps=200, callbacks=callbacks, **kwargs)
+        history = model.fit(train_data, epochs=hparam["EPOCHS"], validation_data=val_data, callbacks=callbacks, **kwargs)
 
     if monitor:
         return model, history
@@ -540,8 +637,6 @@ def predict_future(model_qntl, data_ts, data_ctg, scaler_ts, scaler_ctg, history
     Return:
         pandas Dataframe of the prediction in tidy format.
     """
-    mu, sigma = scaler_ts.mean_[target_idx], scaler_ts.scale_[target_idx]
-
     X_future = [data[-history_size:, :] for data in data_ts]; X_future = np.asarray(X_future)
     C_future = data_ctg; C_future = np.asarray(C_future)
 
@@ -550,7 +645,7 @@ def predict_future(model_qntl, data_ts, data_ctg, scaler_ts, scaler_ctg, history
 
     prediction_future = []
     for i in range(len(model_qntl)):
-        prediction_future.append(sigma*model_qntl[i].predict((X_future, C_future))+mu)
+        prediction_future.append(model_qntl[i].predict((X_future, C_future)))
     prediction_future = np.asarray(prediction_future)
     target_size = prediction_future.shape[2]
 
@@ -588,27 +683,25 @@ def predict_future_mult(model, data_ts, data_ctg, scaler_ts, scaler_ctg, history
     Return:
         pandas Dataframe of the prediction in tidy format.
     """
-    mu, sigma = scaler_ts.mean_[target_idx], scaler_ts.scale_[target_idx]
-
     X_future = [data[-history_size:, :] for data in data_ts]; X_future = np.asarray(X_future)
     C_future = data_ctg; C_future = np.asarray(C_future)
 
     X_future = np.asarray(np.vsplit(scaler_ts.transform(np.vstack(X_future)), len(X_future)))
     C_future = scaler_ctg.transform(C_future)
 
-    prediction_future = np.asarray(sigma*model.predict((X_future, C_future))+mu)
-    assert (prediction_future.shape[1] % len(quantileList))==0
-    target_size = prediction_future.shape[1] // len(quantileList)
-    prediction_future = np.asarray([prediction_future[:, _*target_size:(_+1)*target_size] for _ in range(len(quantileList))])
+    prediction_future = model.predict((X_future, C_future))
+    # assert (prediction_future.shape[1] % len(quantileList))==0
+    # target_size = prediction_future.shape[1] // len(quantileList)
+    # prediction_future = np.asarray([prediction_future[:, _*target_size:(_+1)*target_size] for _ in range(len(quantileList))])
 
     if (FIPS is None) or (date_ed is None):
-        return np.asarray(prediction_future)
+        return prediction_future
     else:
         print('Saving future prediction.')
         df_future = []
         for i, fips in enumerate(FIPS):
-            for j in range(target_size):
-                df_future.append([date_ed+pd.Timedelta(days=1+j), fips]+prediction_future[:,i,j].tolist())
+            for j in range(prediction_future.shape[2]):
+                df_future.append([date_ed+pd.Timedelta(days=1+j), fips]+prediction_future[i,:,j].tolist())
 
         return pd.DataFrame(df_future, columns=['date', 'fips']+[str(10*i) for i in range(1,10)])
 

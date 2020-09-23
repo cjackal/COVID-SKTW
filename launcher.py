@@ -6,6 +6,7 @@ import logging
 from misc.utility import *
 from DataCleaner import DataCleaner
 from LSTM_trainer import LSTM_trainer
+from Scrapper import Scrapper
 
 homedir = get_homedir()
 
@@ -14,13 +15,12 @@ if len(sys.argv)==2:
 elif len(sys.argv)==1:
     config_name = os.path.join(homedir, "config.json")
 else:
-    raise RuntimeError(f"Incompatible argument length of {len(sys.argv)} was passed.")
-
-tmp = str(round(1000*datetime.utcnow().timestamp()))
+    raise RuntimeError(f"Incompatible arguments of length {len(sys.argv)} was passed.")
 
 """
 Set up logger.
 """
+os.makedirs(os.path.join(homedir, 'LSTM', 'log'), mode=0o770, exist_ok=True)
 logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 handler_s = logging.StreamHandler()
@@ -33,6 +33,16 @@ logger.addHandler(handler_f)
 
 with open(config_name, 'r') as f:
     config_dict = json.load(f)
+
+os.makedirs(os.path.join(homedir, 'data'), mode=0o770, exist_ok=True)
+now = datetime.utcnow()
+logger.info("Update timeseries data from remote.")
+with open(os.path.join(homedir, 'data/date.txt'), 'r') as f:
+    scrap_date = f.read(8)
+if now.strftime('%Y%m%d')!=scrap_date:
+    logger.info("Data not up-to-date. Start updating data.")
+    Scrapper()
+tmp = str(round(1000*now.timestamp()))
 
 PATH_SCR = os.path.join(homedir, "LSTM/preprocessing")
 

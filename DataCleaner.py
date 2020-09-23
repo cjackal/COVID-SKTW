@@ -28,8 +28,8 @@ def DataCleaner(config_name, tmp):
     PATH_DEMO = os.path.join(homedir, "caltech_covid_19_modeling/data/us/aggregate_berkeley.csv")
     PATH_GDP = os.path.join(homedir, "LSTM/GDP.csv")
     PATH_GEO = os.path.join(homedir, "caltech_covid_19_modeling/data/us/demographics/county_land_areas.csv")
-    PATH_MT = os.path.join(homedir, "caltech_covid_19_modeling/data/us/covid/nyt_us_counties_daily.csv")
-    PATH_MB = os.path.join(homedir, "caltech_covid_19_modeling/data/us/mobility/DL-us-mobility-daterow.csv")
+    PATH_MT = os.path.join(homedir, "data/nyt_us_counties_daily.csv")
+    PATH_MB = os.path.join(homedir, "data/DL-us-mobility-daterow.csv")
     PATH_SS = os.path.join(homedir, "exploratory_HJo/seasonality_stateLevel.csv")
     # PATH_POL = os.path.join(homedir, "LSTM/policy.csv")=
     ##################################################################################

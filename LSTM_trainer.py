@@ -22,7 +22,7 @@ def LSTM_trainer(config_name, tmp):
 
     config_st = pd.Timestamp(config_dict['start_date'])
     if config_dict['end_date'] is None:
-        config_ed = config_st + pd.Timedelta(days=14)
+        config_ed = config_st + pd.Timedelta(days=13)
     else:
         config_ed = pd.Timestamp(config_dict['end_date'])
     with open(config_name, 'r') as f:
@@ -94,7 +94,6 @@ def LSTM_trainer(config_name, tmp):
 
     # train_data, val_data = load_Dataset(X_train, C_train, y_train, X_val, C_val, y_val)
     train_data = load_Dataset(X_train, C_train, y_train)
-    print(train_data.element_spec[1])
 
     # model, history = LSTM_fit_mult(train_data, lr=lr, NUM_CELLS=NUM_CELLS, EPOCHS=EPOCHS, dp=dp, monitor=True, earlystop=False, verbose=2)
     # FILEPATH = f"/LSTM_mult_hist_size_{history_size}"
@@ -108,7 +107,7 @@ def LSTM_trainer(config_name, tmp):
     # callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=7, baseline=0.1)]
     callbacks = [tf.keras.callbacks.TensorBoard(log_dir=os.path.join(PATH, "log"))]
 
-    model, history = LSTM_fit_mult(train_data, hparam=hparam, monitor=True, callbacks=callbacks, verbose=2, mu=mu, sigma=sigma, test=True)
+    model, history = LSTM_fit_mult(train_data, hparam=hparam, monitor=True, callbacks=callbacks, verbose=2, mu=mu, sigma=sigma, test=False)
     # Plot 
     plot_train_history(history, title=f'History size={hparam["history_size"]}', path=os.path.join(PATH, 'history.png'))
     model.save_weights(os.path.join(PATH, 'weights'), save_format="tf")

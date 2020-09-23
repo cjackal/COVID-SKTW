@@ -16,7 +16,7 @@ def DataCleaner(config_name, tmp):
 
     config_st = pd.Timestamp(config_dict['start_date'])
     if config_dict['end_date'] is None:
-        config_ed = config_st + pd.Timedelta(days=14)
+        config_ed = config_st + pd.Timedelta(days=13)
     else:
         config_ed = pd.Timestamp(config_dict['end_date'])
     if config_dict['start_train'] is None:

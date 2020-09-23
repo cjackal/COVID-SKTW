@@ -593,6 +593,7 @@ def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbac
         history = model.fit(train_data, epochs=hparam["EPOCHS"], callbacks=callbacks, **kwargs)
     else:
         history = model.fit(train_data, epochs=hparam["EPOCHS"], validation_data=val_data, callbacks=callbacks, **kwargs)
+    logger.info('Training complete.')
 
     if monitor:
         return model, history
@@ -697,7 +698,7 @@ def predict_future_mult(model, data_ts, data_ctg, scaler_ts, scaler_ctg, history
     if (FIPS is None) or (date_ed is None):
         return prediction_future
     else:
-        print('Saving future prediction.')
+        logger.info('Saving future prediction.')
         df_future = []
         for i, fips in enumerate(FIPS):
             for j in range(prediction_future.shape[2]):

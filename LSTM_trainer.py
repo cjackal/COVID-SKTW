@@ -83,6 +83,7 @@ def LSTM_trainer(config_name, tmp):
 
     scaler_ts, scaler_ctg = get_StandardScaler(X_train, C_train)
     mu, sigma = scaler_ts.mean_[target_idx], scaler_ts.scale_[target_idx]
+    logger.debug('mu={mu}, sigma={sigma}')
 
     """
     Z-score input data.
@@ -127,5 +128,6 @@ def LSTM_trainer(config_name, tmp):
     """
     Forecast into submission.
     """
+    logger.info('Save into submission format.')
     df_submission = prediction_to_submission([df_future], base=os.path.join(PATH_PREP, 'sample_submission.csv'))
     df_submission.to_csv(config_out, index=False)

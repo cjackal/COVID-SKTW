@@ -48,12 +48,12 @@ def difference_fips_df(df):
     return df
 
 def Scrapper():
-    logging.info('Download DL mobility data.')
+    logger.info('Download DL mobility data.')
     req = requests.get("https://raw.githubusercontent.com/descarteslabs/DL-COVID-19/master/DL-us-mobility-daterow.csv")
     with open(os.path.join(homedir, 'data/DL-us-mobility-daterow.csv'), 'wb') as f:
         f.write(req.content)
 
-    logging.info('Download and preprocess NYT motality data.')
+    logger.info('Download and preprocess NYT motality data.')
     nyt_df = pd.read_csv('https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv', parse_dates=['date'])
 
     nyt_df.loc[nyt_df['county'] == 'New York City', 'fips'] = 36061
@@ -62,17 +62,17 @@ def Scrapper():
     nyt_df['fips'] = nyt_df['fips'].astype(int)
     nyt_df.set_index('fips', inplace=True)
     fips_total = nyt_df.index.unique()
-    logging.debug(f'# of counties: {len(fips_total)}')
+    logger.debug(f'# of counties: {len(fips_total)}')
 
     df_list = []
-    logging.debug('Filling out missing dates.')
+    logger.debug('Filling out missing dates.')
     for i, fips in tqdm(enumerate(fips_total), desc='Processing NYT motality'):
         df = nyt_df.loc[[fips]]
         df = process_fips_df(df)
         df = difference_fips_df(df)
         df_list.append(df)
         if (i+1) % 200 == 0:
-            logging.debug('Process done: {i * 200}/{len(fips_total)}')
+            logger.debug('Process done: {i * 200}/{len(fips_total)}')
     pd.concat(df_list).to_csv(os.path.join(homedir, 'data/nyt_us_counties_daily.csv'))
 
     now = pd.Timestamp.utcnow().strftime("%Y%m%d")

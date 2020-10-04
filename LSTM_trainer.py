@@ -13,7 +13,7 @@ from LSTM.LSTM import *
 homedir = get_homedir()
 logger = logging.getLogger('main.trainer')
 
-def LSTM_trainer(config_name, tmp):
+def LSTM_trainer(config_name, tmp, ver='frozen'):
     PATH_PREP = os.path.join(homedir, 'LSTM/preprocessing', tmp)
     logger.info(f"Using preprocessed data in {PATH_PREP}")
 
@@ -45,7 +45,7 @@ def LSTM_trainer(config_name, tmp):
         "NUM_CELLS": 128,           # Number of cells in LSTM layer
         "lr": 0.001,                # Learning rate
         "dp_ctg": 0.2,              # Dropout rate(categorical inputs)
-        "dp_ts" : 0.2,              # Dropout rate(timeseries inputs)
+        "dp_ts" : 0.0,              # Dropout rate(timeseries inputs)
         "EPOCHS": 15                # Number of epochs for training
     }
     target_size = (config_ed-date_ed).days                # Size of target window
@@ -108,7 +108,7 @@ def LSTM_trainer(config_name, tmp):
     # callbacks = [tf.keras.callbacks.EarlyStopping(monitor='val_loss', patience=7, baseline=0.1)]
     callbacks = [tf.keras.callbacks.TensorBoard(log_dir=os.path.join(PATH, "log"))]
 
-    model, history = LSTM_fit_mult(train_data, hparam=hparam, monitor=True, callbacks=callbacks, verbose=2, mu=mu, sigma=sigma, test=False)
+    model, history = LSTM_fit_mult(train_data, hparam=hparam, monitor=True, callbacks=callbacks, verbose=2, mu=mu, sigma=sigma, ver=ver)
     # Plot 
     plot_train_history(history, title=f'History size={hparam["history_size"]}', path=os.path.join(PATH, 'history.png'))
     model.save_weights(os.path.join(PATH, 'weights'), save_format="tf")

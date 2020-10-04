@@ -79,7 +79,7 @@ class ConditionalRNN(tf.keras.layers.Layer):
     Credit to Philippe Rémy(https://github.com/philipperemy/cond_rnn.git)
     """
     # Arguments to the RNN like return_sequences, return_state...
-    def __init__(self, units, cell=tf.keras.layers.LSTMCell, categorical_dropout=0.0, timeseries_dropout=0.0, test=False,
+    def __init__(self, units, cell=tf.keras.layers.LSTMCell, categorical_dropout=0.0, timeseries_dropout=0.0,
                 *args, **kwargs):
         """
         Conditional RNN. Conditions time series on categorical data.
@@ -93,7 +93,6 @@ class ConditionalRNN(tf.keras.layers.Layer):
         self.units = units
         self.final_states = None
         self.init_state = None
-        self.test = test
         if isinstance(cell, str):
             if cell.upper() == 'GRU':
                 cell = tf.keras.layers.GRUCell
@@ -182,17 +181,18 @@ class ConditionalRNN(tf.keras.layers.Layer):
 
 class SingleLayerConditionalRNN(tf.keras.Model):
     def __init__(self, NUM_CELLS, target_size, quantiles=quantileList, categorical_dropout=0.0, timeseries_dropout=0.0,
-                                                                cell='LSTM', sigma=1., mu=0., test=False, **kwargs):
+                                                                cell='LSTM', sigma=1., mu=0., ver='frozen', **kwargs):
         super().__init__()
         self.quantiles = quantiles
         self.target_size = target_size
+        self.ver = ver
         self.layer1 = ConditionalRNN(NUM_CELLS, cell=cell, categorical_dropout=categorical_dropout,
-                                                        timeseries_dropout=timeseries_dropout, test=test, **kwargs)
+                                                        timeseries_dropout=timeseries_dropout, **kwargs)
         # self.layer2 = tf.keras.layers.Dropout(dropout)
         self.outs = [tf.keras.layers.Dense(self.target_size) for q in quantiles]
         self.conc = tf.keras.layers.Concatenate()
         self.rescale = Rescale_Transpose(sigma=sigma, mu=mu)
-        self.relu = tf.keras.layers.LeakyReLU(alpha=0.05)
+        if ver!='frozen': self.relu = tf.keras.layers.LeakyReLU(alpha=0.05)
         self.out = tf.keras.layers.Reshape((len(self.quantiles), self.target_size))
 
     def call(self, inputs, **kwargs):
@@ -201,7 +201,7 @@ class SingleLayerConditionalRNN(tf.keras.Model):
         o = [self.outs[_](o) for _ in range(len(self.quantiles))]
         o = self.conc(o)
         o = self.rescale(o)
-        o = self.relu(o)
+        if self.ver!='frozen': o = self.relu(o)
         o = self.out(o)
         return o
 
@@ -530,7 +530,7 @@ def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp_c
     else:
         return model_qntl
 
-def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbacks=None, test=False, **kwargs):
+def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbacks=None, ver='frozen', **kwargs):
     """
     Build and fit the multi-output conditional LSTM model.
 
@@ -583,7 +583,7 @@ def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbac
         if key not in hparam: hparam[key] = hparam_default[key]
 
     model = SingleLayerConditionalRNN(hparam["NUM_CELLS"], target_size, categorical_dropout=hparam["dp_ctg"],
-                                        timeseries_dropout=hparam["dp_ts"], cell=celltype, sigma=sigma, mu=mu, test=test)
+                                        timeseries_dropout=hparam["dp_ts"], cell=celltype, sigma=sigma, mu=mu, ver=ver)
     optimizer = tf.keras.optimizers.Adam(learning_rate=hparam["lr"])
 
     model.compile(optimizer=optimizer, loss=lambda y, y_p: MultiQuantileLoss(quantileList, target_size, y, y_p))

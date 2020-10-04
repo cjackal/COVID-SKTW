@@ -9,7 +9,7 @@ from misc.utility import *
 homedir = get_homedir()
 logger = logging.getLogger('main.DataCleaner')
 
-def DataCleaner(config_name, tmp):
+def DataCleaner(config_name, tmp, ver='frozen'):
     with open(config_name, 'r') as f:
         config_dict = json.load(f)
     PATH_SCR = os.path.join(homedir, "LSTM/preprocessing", tmp)
@@ -31,7 +31,7 @@ def DataCleaner(config_name, tmp):
     PATH_MT = os.path.join(homedir, "data/nyt_us_counties_daily.csv")
     PATH_MB = os.path.join(homedir, "data/DL-us-mobility-daterow.csv")
     PATH_SS = os.path.join(homedir, "exploratory_HJo/seasonality_stateLevel.csv")
-    # PATH_POL = os.path.join(homedir, "LSTM/policy.csv")=
+    PATH_POL = os.path.join(homedir, "LSTM/policy.csv")
     ##################################################################################
 
     FIPS_mapping, FIPS_full = get_FIPS(reduced=True)
@@ -130,10 +130,10 @@ def DataCleaner(config_name, tmp):
     seasonality.replace({'state':st_to_fips}, inplace=True)
     seasonality.replace({'state':{'New York City':'36061'}}, inplace=True)
 
-    # policy = pd.read_csv(PATH_POL, parse_dates=['date'])
-    # policy['state'] = policy['state'].apply(lambda x:'0'*(2-len(str(x)))+str(x))
-    # policy['fips'] = policy['fips'].apply(correct_FIPS)
-    # policy.replace({'fips':FIPS_mapping}, inplace=True)
+    policy = pd.read_csv(PATH_POL, parse_dates=['date'])
+    policy['state'] = policy['state'].apply(lambda x:'0'*(2-len(str(x)))+str(x))
+    policy['fips'] = policy['fips'].apply(correct_FIPS)
+    policy.replace({'fips':FIPS_mapping}, inplace=True)
 
     FIPS_demo = set(demo['fips']); FIPS_gdp = set(gdp['fips']); FIPS_mt = set(motality['fips']); FIPS_mb = set(mobility['fips'])
 
@@ -189,8 +189,9 @@ def DataCleaner(config_name, tmp):
     columns_mt = ['cases', 'deaths']; columns_ts += columns_mt
     columns_mb = ['m50', 'm50_index']; columns_ts += columns_mb
     columns_ss = ['seasonality']; columns_ts += columns_ss
-    # columns_pol = ['emergency', 'safeathome', 'business']; columns_ts += columns_pol
-    columns_ts += ['isweekend']
+    columns_pol = ['emergency', 'safeathome', 'business']
+    if ver=='frozen': columns_ts += columns_pol
+    else: columns_ts += ['isweekend']
 
     with open(os.path.join(PATH_SCR, 'columns_ctg.txt'), 'w') as f:
         print(columns_ctg, file=f)
@@ -228,25 +229,27 @@ def DataCleaner(config_name, tmp):
 
         data5 = gdp[gdp['fips']==fips][columns_gdp].to_numpy()[0]
 
-        # data6 = []
-        # _ = policy[policy['state']==fips[:2]].copy()
-        # _ = _[(_['fips']=='0')|(_['fips']==fips)][['date']+columns_pol]
-        # _.drop_duplicates(subset='date', keep='last', inplace=True)
-        # _.reset_index(drop=True, inplace=True)
-        # for dt in date_win:
-        #     if len(_[_['date']<=dt])==0:
-        #         data6.append([0,0,0])
-        #     else:
-        #         data6.append(list(_[_['date']<=dt].iloc[-1][columns_pol].apply(int)))
-        # data6 = np.asarray(data6)
+        data6 = []
+        _ = policy[policy['state']==fips[:2]].copy()
+        _ = _[(_['fips']=='0')|(_['fips']==fips)][['date']+columns_pol]
+        _.drop_duplicates(subset='date', keep='last', inplace=True)
+        _.reset_index(drop=True, inplace=True)
+        for dt in date_win:
+            if len(_[_['date']<=dt])==0:
+                data6.append([0,0,0])
+            else:
+                data6.append(list(_[_['date']<=dt].iloc[-1][columns_pol].apply(int)))
+        data6 = np.asarray(data6)
 
         data7 = geo[geo['County FIPS']==fips][columns_geo].to_numpy()[0]
 
         isweekend = np.asarray([(_.dayofweek)//5 for _ in date_win])[:, np.newaxis]
 
         data_ctg.append(np.hstack((data1, data5, data7)))
-        # data_ts.append(np.hstack((data2, data3, data4, data6)))
-        data_ts.append(np.hstack((data2, data3, data4, isweekend)))
+        if ver=='frozen':
+            data_ts.append(np.hstack((data2, data3, data4, data6)))
+        else:
+            data_ts.append(np.hstack((data2, data3, data4, isweekend)))
     np.save(os.path.join(PATH_SCR, 'data_ctg.npy'), np.asarray(data_ctg, dtype=np.float32))
     np.save(os.path.join(PATH_SCR, 'data_ts.npy'), np.asarray(data_ts, dtype=np.float32))
     with open(os.path.join(PATH_SCR, 'FIPS.txt'), 'w') as f:

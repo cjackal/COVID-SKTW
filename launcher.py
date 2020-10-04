@@ -10,10 +10,11 @@ from Scrapper import Scrapper
 
 homedir = get_homedir()
 
+config_name = os.path.join(homedir, "config.json")
 if len(sys.argv)==2:
-    config_name = sys.argv[1]
+    ver = str(sys.argv[1])
 elif len(sys.argv)==1:
-    config_name = os.path.join(homedir, "config.json")
+    ver = 'frozen'
 else:
     raise RuntimeError(f"Incompatible arguments of length {len(sys.argv)} was passed.")
 
@@ -71,7 +72,7 @@ PATH_SCR = os.path.join(PATH_SCR, tmp)
 if not STOP_PREP:
     logger.info(f"Create new preprocessed data in {tmp}.")
     os.makedirs(PATH_SCR, mode=0o770, exist_ok=True)
-    DataCleaner(config_name, tmp)
+    DataCleaner(config_name, tmp, ver)
 
 logger.info(f"Use preprocessed data in {tmp}")
-LSTM_trainer(config_name, tmp)
+LSTM_trainer(config_name, tmp, ver)

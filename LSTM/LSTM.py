@@ -4,7 +4,7 @@ import logging
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 import tensorflow as tf
 
 quantileList = np.linspace(0.1, 0.9, 9)
@@ -148,36 +148,27 @@ class ConditionalRNN(tf.keras.layers.Layer):
         assert isinstance(inputs, list) and len(inputs) >= 2, f"{inputs}"
         x = inputs[0]
         cond = inputs[1:]
-        if self.test:
-            out = self.rnn(x, *args, **kwargs)
-            if self.rnn.return_state:
-                outputs, h, c = out
-                final_states = tf.stack([h, c])
-                return outputs, final_states
-            else:
-                return out
+        if len(cond) > 1:  # multiple conditions.
+            init_state_list = []
+            for ii, c in enumerate(cond):
+                init_state_list.append(self.multi_cond_to_init_state_dense[ii](self._standardize_condition(c)))
+            multi_cond_state = self.multi_cond_p(tf.stack(init_state_list, axis=-1))
+            multi_cond_state = tf.squeeze(multi_cond_state, axis=-1)
+            self.init_state = tf.unstack(multi_cond_state, axis=0)
         else:
-            if len(cond) > 1:  # multiple conditions.
-                init_state_list = []
-                for ii, c in enumerate(cond):
-                    init_state_list.append(self.multi_cond_to_init_state_dense[ii](self._standardize_condition(c)))
-                multi_cond_state = self.multi_cond_p(tf.stack(init_state_list, axis=-1))
-                multi_cond_state = tf.squeeze(multi_cond_state, axis=-1)
-                self.init_state = tf.unstack(multi_cond_state, axis=0)
-            else:
-                cond = self._standardize_condition(cond[0])
-                if cond is not None:
-                    self.init_state = self.cond_to_init_state_dense_1(cond)
-                    self.init_state = tf.unstack(self.init_state, axis=0)
-            for i in range(2):
-                self.init_state[i] = self.dropout(self.init_state[i])
-            out = self.rnn(x, initial_state=self.init_state, *args, **kwargs)
-            if self.rnn.return_state:
-                outputs, h, c = out
-                final_states = tf.stack([h, c])
-                return outputs, final_states
-            else:
-                return out
+            cond = self._standardize_condition(cond[0])
+            if cond is not None:
+                self.init_state = self.cond_to_init_state_dense_1(cond)
+                self.init_state = tf.unstack(self.init_state, axis=0)
+        for i in range(2):
+            self.init_state[i] = self.dropout(self.init_state[i])
+        out = self.rnn(x, initial_state=self.init_state, *args, **kwargs)
+        if self.rnn.return_state:
+            outputs, h, c = out
+            final_states = tf.stack([h, c])
+            return outputs, final_states
+        else:
+            return out
 
 class SingleLayerConditionalRNN(tf.keras.Model):
     def __init__(self, NUM_CELLS, target_size, quantiles=quantileList, categorical_dropout=0.0, timeseries_dropout=0.0,

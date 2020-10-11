@@ -36,6 +36,10 @@ def read_IHME(path=None, startdate=None):
                     with ihme.open(fpath) as csv:
                         df = pd.read_csv(csv)
                     break
+                elif 'Hospitalization_all_locs.csv' in fpath:
+                    with ihme.open(fpath) as csv:
+                        df = pd.read_csv(csv)
+                    break
     else:
         df = pd.read_csv(path)
 
@@ -52,6 +56,8 @@ def read_IHME(path=None, startdate=None):
         'West Virginia', 'Wisconsin', 'Wyoming']
 
     df_usa = df[df['location_name'].isin(_states)][['date', 'location_name', 'deaths_mean_smoothed']]
+    if sum(df_usa['deaths_mean_smoothed'].isna())>0:
+        df_usa['deaths_mean_smoothed'] = df[df['location_name'].isin(_states)]['deaths_mean']
     df_usa['fips'] = df_usa['location_name'].apply(lambda x: _st_to_fips[x])
 
     if path is None:
@@ -115,6 +121,6 @@ def read_YYG(path=None, startdate=None):
     pass
 
 if __name__=='__main__':
-    read_IHME(startdate='20200820')
-    read_LANL(startdate='20200820')
-    read_MIT(startdate='20200820')
+    read_IHME(startdate='20200510')
+    # read_LANL(startdate='20200820')
+    # read_MIT(startdate='20200820')

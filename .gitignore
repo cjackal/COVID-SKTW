@@ -2,9 +2,10 @@
 LSTM/log/
 LSTM/prediction/
 LSTM/preprocessing/
-data/
-config.json
 .vscode/
+data/
+submissions/
+config.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

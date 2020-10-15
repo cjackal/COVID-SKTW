@@ -132,8 +132,8 @@ def DataCleaner(config_name, tmp, ver='frozen'):
 
     policy = pd.read_csv(PATH_POL, parse_dates=['date'])
     policy = policy[policy['policy_type'].isin(['ShelterInPlace', 'StateOfEmergency', 'Non-essentialBusinesses'])]
-    policy['fips'] = policy['fips'].apply(correct_FIPS)
-    policy.replace({'fips':FIPS_mapping}, inplace=True)
+    policy['fips_code'] = policy['fips_code'].apply(correct_FIPS)
+    policy.replace({'fips_code':FIPS_mapping}, inplace=True)
 
     FIPS_demo = set(demo['fips']); FIPS_gdp = set(gdp['fips']); FIPS_mt = set(motality['fips']); FIPS_mb = set(mobility['fips'])
 
@@ -198,8 +198,8 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     with open(os.path.join(PATH_SCR, 'columns_ts.txt'), 'w') as f:
         print(columns_ts, file=f)
 
-    logger.info('Categorical features: '+''.join(columns_ctg))
-    logger.info('Timeseries features: '+''.join(columns_ts))
+    logger.info('Categorical features: '+', '.join(columns_ctg))
+    logger.info('Timeseries features: '+', '.join(columns_ts))
     logger.info(f'# Demographic FIPS={len(FIPS_demo)}, # Motality FIPS={len(FIPS_mt)}, # Mobility FIPS={len(FIPS_mb)}')
     logger.info(f'First date to be trained: {date_st}, Final date to be trained: {date_ed}')
 
@@ -232,7 +232,7 @@ def DataCleaner(config_name, tmp, ver='frozen'):
         data5 = gdp[gdp['fips']==fips][columns_gdp].to_numpy()[0]
 
         data6 = []
-        _ = policy[(policy['fips']==fips)|(policy['fips']==fips[:2]+'000')]
+        _ = policy[(policy['fips_code']==fips)|(policy['fips_code']==fips[:2]+'000')]
         df = _[_['date']<date_win[0]]
         emergency, safeathome, business = 0, 0, 0
         for i in df.index:

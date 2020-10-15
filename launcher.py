@@ -26,7 +26,7 @@ logger = logging.getLogger('main')
 logger.setLevel(logging.INFO)
 handler_s = logging.StreamHandler()
 handler_f = logging.FileHandler(os.path.join(homedir, f'LSTM/log/{datetime.now().strftime("%Y%m%d-%H%M%S")}.log'))
-formatter = logging.Formatter('{name} {asctime}: {message}', datefmt='%d %b, %Y %H:%M:%S', style='{')
+formatter = logging.Formatter('{asctime} {name}: {message}', datefmt='%d %b, %Y %H:%M:%S', style='{')
 handler_s.setFormatter(formatter)
 handler_f.setFormatter(formatter)
 logger.addHandler(handler_s)
@@ -38,8 +38,11 @@ with open(config_name, 'r') as f:
 os.makedirs(os.path.join(homedir, 'data'), mode=0o770, exist_ok=True)
 now = datetime.utcnow()
 logger.info("Update timeseries data from remote.")
-with open(os.path.join(homedir, 'data/date.txt'), 'r') as f:
-    scrap_date = f.read(8)
+try:
+    with open(os.path.join(homedir, 'data/date.txt'), 'r') as f:
+        scrap_date = f.read(8)
+except:
+    scrap_date = '0'*8
 if now.strftime('%Y%m%d')!=scrap_date:
     logger.info("Data not up-to-date. Start updating data.")
     Scrapper()

@@ -31,7 +31,7 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     PATH_MT = os.path.join(homedir, "data/nyt_us_counties_daily.csv")
     PATH_MB = os.path.join(homedir, "data/DL-us-mobility-daterow.csv")
     PATH_SS = os.path.join(homedir, "exploratory_HJo/seasonality_stateLevel.csv")
-    PATH_POL = os.path.join(homedir, "LSTM/policy.csv")
+    PATH_POL = os.path.join(homedir, "data/state_policy.csv")
     ##################################################################################
 
     FIPS_mapping, FIPS_full = get_FIPS(reduced=True)
@@ -131,7 +131,7 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     seasonality.replace({'state':{'New York City':'36061'}}, inplace=True)
 
     policy = pd.read_csv(PATH_POL, parse_dates=['date'])
-    policy['state'] = policy['state'].apply(lambda x:'0'*(2-len(str(x)))+str(x))
+    policy = policy[policy['policy_type'].isin(['ShelterInPlace', 'StateOfEmergency', 'Non-essentialBusinesses'])]
     policy['fips'] = policy['fips'].apply(correct_FIPS)
     policy.replace({'fips':FIPS_mapping}, inplace=True)
 
@@ -198,6 +198,8 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     with open(os.path.join(PATH_SCR, 'columns_ts.txt'), 'w') as f:
         print(columns_ts, file=f)
 
+    logger.info('Categorical features: '+''.join(columns_ctg))
+    logger.info('Timeseries features: '+''.join(columns_ts))
     logger.info(f'# Demographic FIPS={len(FIPS_demo)}, # Motality FIPS={len(FIPS_mt)}, # Mobility FIPS={len(FIPS_mb)}')
     logger.info(f'First date to be trained: {date_st}, Final date to be trained: {date_ed}')
 
@@ -230,15 +232,26 @@ def DataCleaner(config_name, tmp, ver='frozen'):
         data5 = gdp[gdp['fips']==fips][columns_gdp].to_numpy()[0]
 
         data6 = []
-        _ = policy[policy['state']==fips[:2]].copy()
-        _ = _[(_['fips']=='0')|(_['fips']==fips)][['date']+columns_pol]
-        _.drop_duplicates(subset='date', keep='last', inplace=True)
-        _.reset_index(drop=True, inplace=True)
-        for dt in date_win:
-            if len(_[_['date']<=dt])==0:
-                data6.append([0,0,0])
+        _ = policy[(policy['fips']==fips)|(policy['fips']==fips[:2]+'000')]
+        df = _[_['date']<date_win[0]]
+        emergency, safeathome, business = 0, 0, 0
+        for i in df.index:
+            if df.loc[i, 'policy_type']=='StateOfEmergency':
+                emergency = int(df.loc[i, 'start_stop'])
+            elif df.loc[i, 'policy_type']=='ShelterInPlace':
+                safeathome = int(df.loc[i, 'start_stop'])
             else:
-                data6.append(list(_[_['date']<=dt].iloc[-1][columns_pol].apply(int)))
+                business = int(df.loc[i, 'start_stop'])
+        for dt in date_win:
+            df = _[_['date']==dt]
+            for i in df.index:
+                if df.loc[i, 'policy_type']=='StateOfEmergency':
+                    emergency = int(df.loc[i, 'start_stop'])
+                elif df.loc[i, 'policy_type']=='ShelterInPlace':
+                    safeathome = int(df.loc[i, 'start_stop'])
+                else:
+                    business = int(df.loc[i, 'start_stop'])
+            data6.append([emergency, safeathome, business])
         data6 = np.asarray(data6)
 
         data7 = geo[geo['County FIPS']==fips][columns_geo].to_numpy()[0]

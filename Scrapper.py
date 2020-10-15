@@ -1,10 +1,12 @@
 import os
 import requests
 import logging
+import json
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
-from misc.utility import get_homedir
+from bs4 import BeautifulSoup
+from misc.utility import get_homedir, correct_FIPS
 
 homedir = get_homedir()
 logger = logging.getLogger('main.Scrapper')
@@ -50,7 +52,7 @@ def difference_fips_df(df):
 def Scrapper():
     logger.info('Download DL mobility data.')
     req = requests.get("https://raw.githubusercontent.com/descarteslabs/DL-COVID-19/master/DL-us-mobility-daterow.csv")
-    with open(os.path.join(homedir, 'data/DL-us-mobility-daterow.csv'), 'wb') as f:
+    with open(os.path.join(homedir, 'data', 'DL-us-mobility-daterow.csv'), 'wb') as f:
         f.write(req.content)
 
     logger.info('Download and preprocess NYT motality data.')
@@ -73,8 +75,27 @@ def Scrapper():
         df_list.append(df)
         if (i+1) % 200 == 0:
             logger.debug('Process done: {i * 200}/{len(fips_total)}')
-    pd.concat(df_list).to_csv(os.path.join(homedir, 'data/nyt_us_counties_daily.csv'))
+    pd.concat(df_list).to_csv(os.path.join(homedir, 'data', 'nyt_us_counties_daily.csv'))
+
+    logger.info('Download and preprocess HHS policy data.')
+    r = BeautifulSoup(requests.get('https://healthdata.gov/dataset/covid-19-state-and-county-policy-orders').text, "html5lib")
+    url = r.find_all("a", class_="data-link")[0]['href']
+
+    with open(os.path.join(homedir, 'misc/po_code_state_map.json')) as f:
+        po_code_state_map = json.load(f)
+    pc_to_fips = {v['postalCode']:int(''.join((v['fips'], '000'))) for v in po_code_state_map}
+
+    hhs_df = pd.read_csv(url, parse_dates=['date'])
+    hhs_df['policy_type'] = hhs_df['policy_type'].apply(lambda x: ''.join([s.capitalize() for s in x.split(' ')]))
+    hhs_df['start_stop'] = hhs_df['start_stop'].apply(lambda x: True if x=='start' else False)
+    for i in hhs_df.index:
+        if hhs_df.loc[i, 'policy_level']=='state':
+            hhs_df.loc[i, 'fips_code'] = pc_to_fips.get(hhs_df.loc[i, 'state_id'], hhs_df.loc[i, 'fips_code'])
+    hhs_df.dropna(subset=['fips_code'], inplace=True)
+    hhs_df['fips_code'] = hhs_df['fips_code'].apply(correct_FIPS)
+    hhs_df = hhs_df[['fips_code', 'date', 'policy_type', 'start_stop']].sort_values('date')
+    hhs_df.to_csv(os.path.join(homedir, 'data', 'state_policy.csv'), index=False)
 
     now = pd.Timestamp.utcnow().strftime("%Y%m%d")
-    with open(os.path.join(homedir, 'data/date.txt'), 'w') as f:
+    with open(os.path.join(homedir, 'data', 'date.txt'), 'w') as f:
         print(now, file=f)

@@ -116,7 +116,7 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
     df_future = predict_future_mult(model, data_ts, data_ctg, scaler_ts, scaler_ctg, hparam['history_size'],
                                     target_idx, FIPS=FIPS_total, date_ed=date_ed-pd.Timedelta(days=timedelta))
     df_future.to_csv(os.path.join(PATH, 'LSTM_mult.csv'), index=False)
-    
+
     with open(os.path.join(PATH, 'date_ed.txt'), 'w') as f:
         print(date_ed.strftime('%Y-%m-%d'), file=f)
 

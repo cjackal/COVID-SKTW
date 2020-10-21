@@ -32,7 +32,7 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     PATH_MB = os.path.join(homedir, "data/DL-us-mobility-daterow.csv")
     PATH_SS = os.path.join(homedir, "LSTM/seasonality_stateLevel.csv")
     PATH_POL = os.path.join(homedir, "data/state_policy.csv")
-    ##################################################################################
+    ############################################################################
 
     FIPS_mapping, FIPS_full = get_FIPS(reduced=True)
     oneweek = pd.Timedelta(days=7)

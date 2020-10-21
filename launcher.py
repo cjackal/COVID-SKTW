@@ -18,7 +18,7 @@ if len(sys.argv)==3:
 elif len(sys.argv)==2:
     if sys.argv[1][-4:]=='json':
         config_name = sys.argv[1]
-    else: 
+    else:
         ver = str(sys.argv[1])
         config_name = os.path.join(homedir, "config.json")
 elif len(sys.argv)==1:

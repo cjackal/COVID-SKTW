@@ -1,3 +1,9 @@
+import os
+import git
+from functools import reduce
+
+_homedir = get_homedir()
+
 def correct_FIPS(fips):
     # We need to add back the leading zero to some of the FIPS codes
     # since they were removed when loaded them as floats
@@ -8,8 +14,6 @@ def correct_FIPS(fips):
 
 def get_homedir(verbose=False):
     # Simply get the root directory
-    import git
-
     homedir = git.Repo("./", search_parent_directories=True).working_dir
     if verbose:
         print(homedir)
@@ -29,8 +33,7 @@ def get_FIPS(path='/misc/FIPS_mapping.txt', reduced=False):
         List of full FIPS.
         Same as list(FIPS_mapping.values())
     """
-    homedir = get_homedir()
-    with open(f'{homedir}'+path, 'r') as f:
+    with open(os.path.join(_homedir, path), 'r') as f:
         dic = eval(f.read())
     # Take inverse of the dictionary
     dic_inv = {}
@@ -107,20 +110,17 @@ def to_multi_idx(df, fipslabel='fips', datelabel='date'):
     """
     Combine FIPS and date columns into single multiindex.
     """
-    from functools import reduce
-
     reindexer = {}
     for i in range(len(df)):
         reindexer[df.index[i]] = reduce((lambda x, y: str(x)[:10]+f'-{int(y)}'), df.iloc[i][[datelabel, fipslabel]].tolist())
 
     return df.rename(index=reindexer).rename_axis('id').drop([datelabel, fipslabel], axis=1)
 
-def prediction_to_submission(dfs, base='/sample_submission.csv', fipslabel='fips', datelabel='date',
-                             force_positive=True, force_increasing=True):
+def prediction_to_submission(dfs, base='sample_submission.csv',
+                            fipslabel='fips', datelabel='date',
+                            force_positive=True, force_increasing=True):
     import pandas as pd
     import numpy as np
-
-    homedir = get_homedir()
 
     for i in range(len(dfs)):
         dfs[i][fipslabel] = dfs[i][fipslabel].apply(correct_FIPS)
@@ -143,19 +143,19 @@ def prediction_to_submission(dfs, base='/sample_submission.csv', fipslabel='fips
     
     return df_base.reset_index()
 
-def gen_submission(date_st, date_ed, path='/LSTM/preprocessing/sample_submission.csv', FIPS='/misc/FIPS_mapping.txt', file=True):
+def gen_submission(date_st, date_ed, FIPS='/misc/FIPS_mapping.txt',
+                path='/LSTM/preprocessing/sample_submission.csv', file=True):
     import pandas as pd
-    homedir = get_homedir()
 
-    with open(f'{homedir}'+FIPS, 'r') as f:
+    with open(os.path.join(_homedir, FIPS), 'r') as f:
         dic = eval(f.read())
     FIPS_sample = sorted(set(dic.values()))
     dwin = pd.date_range(start=date_st, end=date_ed)
-    ind = [dt.strftime('%Y-%m-%d')+'-'+str(int(fips)) for dt in dwin for fips in FIPS_sample]
+    ind = ['-'.join(dt.strftime('%Y-%m-%d'), str(int(fips))) for dt in dwin for fips in FIPS_sample]
     column = [str(10*i) for i in range(1,10)]
     df = pd.DataFrame(0.00, index=ind, columns=column).reset_index()
     df.rename(columns={'index':'id'}, inplace=True)
     if file:
-        df.to_csv(path, index=False)
+        df.to_csv(os.path.join(_homedir, path), index=False)
     else:
         return df

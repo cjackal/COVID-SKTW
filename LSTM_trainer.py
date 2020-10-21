@@ -39,7 +39,7 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
     timedelta = max(0, (date_ed - config_st).days + 1) # How many dates from date_ed not to be included in training.
                 # Only necessary for using custom training timeline.
     split_ratio = None              # Training-validation splitting ratio
-    QUANTILE = list(quantileList)   
+    QUANTILE = list(quantileList)
     hparam = {
         "history_size": 7,          # Size of history window
         "NUM_CELLS": 128,           # Number of cells in LSTM layer
@@ -50,7 +50,7 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
     }
     target_size = (config_ed-date_ed).days                # Size of target window
     step_size = 1                   
-    #######################################################################################
+    ############################################################################
     """
     Load necessary data from PATH_PREP.
     """

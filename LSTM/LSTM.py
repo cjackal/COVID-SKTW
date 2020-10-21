@@ -4,7 +4,7 @@ import logging
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import tensorflow as tf
 
 quantileList = np.linspace(0.1, 0.9, 9)
@@ -171,14 +171,17 @@ class ConditionalRNN(tf.keras.layers.Layer):
             return out
 
 class SingleLayerConditionalRNN(tf.keras.Model):
-    def __init__(self, NUM_CELLS, target_size, quantiles=quantileList, categorical_dropout=0.0, timeseries_dropout=0.0,
-                                                                cell='LSTM', sigma=1., mu=0., ver='frozen', **kwargs):
+    def __init__(self, NUM_CELLS, target_size, quantiles=quantileList,
+                categorical_dropout=0.0, timeseries_dropout=0.0, cell='LSTM',
+                sigma=1., mu=0., ver='frozen', **kwargs):
         super().__init__()
         self.quantiles = quantiles
         self.target_size = target_size
         self.ver = ver
-        self.layer1 = ConditionalRNN(NUM_CELLS, cell=cell, categorical_dropout=categorical_dropout,
-                                                        timeseries_dropout=timeseries_dropout, **kwargs)
+        self.layer1 = ConditionalRNN(NUM_CELLS, cell=cell,
+                                    categorical_dropout=categorical_dropout,
+                                    timeseries_dropout=timeseries_dropout,
+                                    **kwargs)
         # self.layer2 = tf.keras.layers.Dropout(dropout)
         self.outs = [tf.keras.layers.Dense(self.target_size) for q in quantiles]
         self.conc = tf.keras.layers.Concatenate()
@@ -235,11 +238,12 @@ def _get_TRAIN_SPLIT(history_size, target_size, total_size, split_ratio=0.2):
       TRAIN_SPLIT: int
         # training dates (= index of splitting).
     """
-    assert total_size>=2*history_size+target_size-1+(2/split_ratio), 'History and Target sizes are too large.'
+    assert total_size>=2*history_size+target_size-1+(2/split_ratio), 'History and target sizes are too large.'
 
     return int((1-split_ratio)*(total_size-target_size+1)-(1-2*split_ratio)*history_size)+1
 
-def train_val_split(data_ts, data_ctg, target_idx, history_size, target_size, split_ratio=None, step_size=1, axis='time'):
+def train_val_split(data_ts, data_ctg, target_idx, history_size, target_size,
+                    split_ratio=None, step_size=1, axis='time'):
     """
     Train-validation split.
 
@@ -452,10 +456,6 @@ def MultiQuantileLoss(quantiles, target_size, y, y_p):
       target_size: int
         Size of target window.
     """
-    # assert y_p.shape[-1] == y.shape[-1]*len(quantiles), f"{y_p.shape}, {y.shape}"
-    # a = tf.reshape(y_p, [len(quantiles)]+y.shape)
-
-    # a = [y[:,_*target_size:(_+1)*target_size] for _ in range(len(quantiles))]
     return tf.math.reduce_mean(tf.stack([quantileLoss(quantiles[_], y, y_p[:, _, :]) for _ in range(len(quantiles))]))
 
 def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp_ctg=0.2, dp_ts=0.2, monitor=False, callbacks=None, **kwargs):
@@ -499,8 +499,11 @@ def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp_c
         except KeyError:
             continue
 
-    model_qntl = [SingleLayerConditionalRNN(NUM_CELLS, target_size, categorical_dropout=dp_ctg, timeseries_dropout=dp_ts, 
-                                                        cell=celltype, sigma=sigma, mu=mu) for _ in range(len(quantileList))]
+    model_qntl = [SingleLayerConditionalRNN(NUM_CELLS, target_size,
+                                            categorical_dropout=dp_ctg,
+                                            timeseries_dropout=dp_ts,
+                                            cell=celltype, sigma=sigma, mu=mu)
+                                            for _ in range(len(quantileList))]
     history_qntl =[]
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
@@ -573,8 +576,10 @@ def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbac
     for key in hparam_default:
         if key not in hparam: hparam[key] = hparam_default[key]
 
-    model = SingleLayerConditionalRNN(hparam["NUM_CELLS"], target_size, categorical_dropout=hparam["dp_ctg"],
-                                        timeseries_dropout=hparam["dp_ts"], cell=celltype, sigma=sigma, mu=mu, ver=ver)
+    model = SingleLayerConditionalRNN(hparam["NUM_CELLS"], target_size,
+                                    categorical_dropout=hparam["dp_ctg"],
+                                    timeseries_dropout=hparam["dp_ts"],
+                                    cell=celltype, sigma=sigma, mu=mu, ver=ver)
     optimizer = tf.keras.optimizers.Adam(learning_rate=hparam["lr"])
 
     model.compile(optimizer=optimizer, loss=lambda y, y_p: MultiQuantileLoss(quantileList, target_size, y, y_p))
@@ -682,9 +687,6 @@ def predict_future_mult(model, data_ts, data_ctg, scaler_ts, scaler_ctg, history
     C_future = scaler_ctg.transform(C_future)
 
     prediction_future = model.predict((X_future, C_future))
-    # assert (prediction_future.shape[1] % len(quantileList))==0
-    # target_size = prediction_future.shape[1] // len(quantileList)
-    # prediction_future = np.asarray([prediction_future[:, _*target_size:(_+1)*target_size] for _ in range(len(quantileList))])
 
     if (FIPS is None) or (date_ed is None):
         return prediction_future

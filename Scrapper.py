@@ -27,8 +27,8 @@ def process_fips_df(df):
 
     dates = df['date'].values
     for i in range(1, len(dates)):
-        # Fill in missing rows with no new cases/deaths, as it appears that these missing days
-        # have no new cases/deaths.
+        # Fill in missing rows with no new cases/deaths, as it appears that
+        # these missing days have no new cases/deaths.
         if(dates[i] > dates[i-1]+np.timedelta64(1,'D')):
             return process_fips_df(add_missing_date_rows(df, df.iloc[i], dates[i-1], dates[i]))
     return df
@@ -83,7 +83,7 @@ def Scrapper():
 
     with open(os.path.join(homedir, 'misc/po_code_state_map.json')) as f:
         po_code_state_map = json.load(f)
-    pc_to_fips = {v['postalCode']:int(''.join((v['fips'], '000'))) for v in po_code_state_map}
+    pc_to_fips = {v['postalCode']: int(''.join((v['fips'], '000'))) for v in po_code_state_map}
 
     hhs_df = pd.read_csv(url, parse_dates=['date'])
     hhs_df['policy_type'] = hhs_df['policy_type'].apply(lambda x: ''.join([s.capitalize() for s in x.split(' ')]))

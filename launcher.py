@@ -10,11 +10,19 @@ from Scrapper import Scrapper
 
 homedir = get_homedir()
 
-config_name = os.path.join(homedir, "config.json")
-if len(sys.argv)==2:
-    ver = str(sys.argv[1])
+forcePrep = False
+ver = 'frozen'
+if len(sys.argv)==3:
+    config_name = sys.argv[-2]
+    ver = sys.argv[-1]
+elif len(sys.argv)==2:
+    if sys.argv[1][-4:]=='json':
+        config_name = sys.argv[1]
+    else: 
+        ver = str(sys.argv[1])
+        config_name = os.path.join(homedir, "config.json")
 elif len(sys.argv)==1:
-    ver = 'frozen'
+    config_name = os.path.join(homedir, "config.json")
 else:
     raise RuntimeError(f"Incompatible arguments of length {len(sys.argv)} was passed.")
 
@@ -52,24 +60,27 @@ tmp = str(round(1000*now.timestamp()))
 PATH_SCR = os.path.join(homedir, "LSTM/preprocessing")
 
 STOP_PREP = False
-logger.info("Search existing preprocessed data.")
-for root, dirs, files in os.walk(PATH_SCR):
-    for name in files:
-        if name=='config.json':
-            with open(os.path.join(root,name), 'r') as f:
-                config_temp = json.load(f)
-            already_there = True
-            for key in ["date_generated", "start_train", "end_train", "start_date", "end_date"]:
-                try:
-                    already_there = (config_dict[key]==config_temp[key]) and already_there
-                except:
-                    already_there = False
+if forcePrep:
+    logger.info("Forcing preperation without using the existing files.")
+else:
+    logger.info("Search existing preprocessed data.")
+    for root, dirs, files in os.walk(PATH_SCR):
+        for name in files:
+            if name=='config.json':
+                with open(os.path.join(root,name), 'r') as f:
+                    config_temp = json.load(f)
+                already_there = True
+                for key in ["date_generated", "start_train", "end_train", "start_date", "end_date"]:
+                    try:
+                        already_there = (config_dict[key]==config_temp[key]) and already_there
+                    except:
+                        already_there = False
+                        break
+                if already_there:
+                    tmp = os.path.basename(root)
+                    STOP_PREP = True
                     break
-            if already_there:
-                tmp = os.path.basename(root)
-                STOP_PREP = True
-                break
-    if STOP_PREP: break
+        if STOP_PREP: break
 
 PATH_SCR = os.path.join(PATH_SCR, tmp)
 

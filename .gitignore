@@ -5,7 +5,7 @@ LSTM/preprocessing/
 .vscode/
 data/
 submissions/
-config.json
+*.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
@@ -107,9 +107,6 @@ __pypackages__/
 celerybeat-schedule
 celerybeat.pid
 
-# SageMath parsed files
-*.sage.py
-
 # Environments
 .env
 .venv
@@ -136,21 +133,3 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
-
-config_1stHalf.json
-
-config_2020_05_24.json
-
-config_2ndHalf.json
-
-config_untilApr.json
-
-config_untilApr15.json
-
-config_untilAugust.json
-
-config_untilJuly.json
-
-config_untilJune.json
-
-config_untilMay.json

@@ -4,7 +4,7 @@ import json
 import logging
 import numpy as np
 import pandas as pd
-from misc.utility import *
+from misc.utility import pbar, correct_FIPS, get_homedir, get_FIPS, fix_FIPS, gen_frame
 
 homedir = get_homedir()
 logger = logging.getLogger('main.DataCleaner')
@@ -39,10 +39,10 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     md_now = pd.Timestamp.now().strftime('%m%d')
 
     """
-    Generate base DataFrame in the format of sample_submission.
+    Generate base DataFrame with the final format.
     """
     logger.debug("Generate base DataFrame.")
-    gen_submission(config_st, config_ed, file=False).to_csv(os.path.join(PATH_SCR, 'sample_submission.csv'), index=False)
+    gen_frame(config_st, config_ed, file=False).to_csv(os.path.join(PATH_SCR, 'frame.csv'), index=False)
 
     """
     Read State-FIPS dictionary to be used in seasonality data.
@@ -198,8 +198,8 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     with open(os.path.join(PATH_SCR, 'columns_ts.txt'), 'w') as f:
         print(columns_ts, file=f)
 
-    logger.info('Categorical features: '+', '.join(columns_ctg))
-    logger.info('Timeseries features: '+', '.join(columns_ts))
+    logger.debug('Categorical features: '+', '.join(columns_ctg))
+    logger.debug('Timeseries features: '+', '.join(columns_ts))
     logger.info(f'# Demographic FIPS={len(FIPS_demo)}, # Motality FIPS={len(FIPS_mt)}, # Mobility FIPS={len(FIPS_mb)}')
     logger.info(f'First date to be trained: {date_st}, Final date to be trained: {date_ed}')
 
@@ -209,10 +209,7 @@ def DataCleaner(config_name, tmp, ver='frozen'):
     data_ts = []
     data_ctg = []
     counter = 0
-    for fips in sorted(FIPS_demo):
-        counter += 1
-        if counter % 300 == 0:
-            print('.', end='')
+    for fips in pbar(sorted(FIPS_demo), desc='Generate training data', bar_format='{l_bar}{bar}[{elapsed}<{remaining}]'):
         data1 = demo[demo['fips']==fips][columns_demo].to_numpy()[0]
         
         data2 = motality[(motality['fips']==fips) & (motality['date'].isin(date_win))][['date']+columns_mt]

@@ -3,7 +3,7 @@ import sys
 from datetime import datetime
 import json
 import logging
-from misc.utility import *
+from misc.utility import get_homedir
 from DataCleaner import DataCleaner
 from LSTM_trainer import LSTM_trainer
 from Scrapper import Scrapper
@@ -31,7 +31,7 @@ Set up logger.
 """
 os.makedirs(os.path.join(homedir, 'LSTM', 'log'), mode=0o770, exist_ok=True)
 logger = logging.getLogger('main')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 handler_s = logging.StreamHandler()
 handler_f = logging.FileHandler(os.path.join(homedir, f'LSTM/log/{datetime.now().strftime("%Y%m%d-%H%M%S")}.log'))
 formatter = logging.Formatter('{asctime} {name}: {message}',

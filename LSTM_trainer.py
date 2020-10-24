@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import tensorflow as tf
-from misc.utility import *
+from misc.utility import get_homedir, reformat_prediction
 from LSTM.LSTM import *
 
 homedir = get_homedir()
@@ -31,7 +31,7 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
 
     tmp = str(round(1000*pd.Timestamp.utcnow().timestamp()))
 
-    PATH = os.path.join(homedir, 'LSTM', 'prediction', tmp)         # All outputs will be saved in this folder.
+    PATH = os.path.join(homedir, 'LSTM/prediction', tmp)         # All outputs will be saved in this folder.
 
     with open(os.path.join(PATH_PREP, 'date_ed.txt'), 'r') as f:
         date_ed = pd.Timestamp(f.read()) # Last date in the preprocessed data. 
@@ -39,13 +39,12 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
     timedelta = max(0, (date_ed - config_st).days + 1) # How many dates from date_ed not to be included in training.
                 # Only necessary for using custom training timeline.
     split_ratio = None              # Training-validation splitting ratio
-    QUANTILE = list(quantileList)
     hparam = {
         "history_size": 7,          # Size of history window
         "NUM_CELLS": 128,           # Number of cells in LSTM layer
         "lr": 0.001,                # Learning rate
         "dp_ctg": 0.2,              # Dropout rate(categorical inputs)
-        "dp_ts" : 0.0,              # Dropout rate(timeseries inputs)
+        "dp_ts" : 0.2,              # Dropout rate(timeseries inputs)
         "EPOCHS": 15                # Number of epochs for training
     }
     target_size = (config_ed-date_ed).days                # Size of target window
@@ -83,7 +82,7 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
 
     scaler_ts, scaler_ctg = get_StandardScaler(X_train, C_train)
     mu, sigma = scaler_ts.mean_[target_idx], scaler_ts.scale_[target_idx]
-    logger.debug('mu={mu}, sigma={sigma}')
+    logger.debug(f'mu={mu}, sigma={sigma}')
 
     """
     Z-score input data.
@@ -129,8 +128,8 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
     # df_future_test.to_csv(PATH+f'/LSTM_mult_hist_size_{history_size}_{TODAY}_test.csv', index=False)
 
     """
-    Forecast into submission.
+    Reformat into single-index form.
     """
-    logger.info('Save into submission format.')
-    df_submission = prediction_to_submission([df_future], base=os.path.join(PATH_PREP, 'sample_submission.csv'))
+    logger.info('Save into single-index format.')
+    df_submission = reformat_prediction([df_future], base=os.path.join(PATH_PREP, 'frame.csv'))
     df_submission.to_csv(config_out, index=False)

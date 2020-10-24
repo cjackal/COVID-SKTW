@@ -4,9 +4,8 @@ import logging
 import json
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from bs4 import BeautifulSoup
-from misc.utility import get_homedir, correct_FIPS
+from misc.utility import pbar, get_homedir, correct_FIPS
 
 homedir = get_homedir()
 logger = logging.getLogger('main.Scrapper')
@@ -68,7 +67,7 @@ def Scrapper():
 
     df_list = []
     logger.debug('Filling out missing dates.')
-    for i, fips in tqdm(enumerate(fips_total), desc='Processing NYT motality'):
+    for i, fips in pbar(enumerate(fips_total), desc='Processing NYT motality', bar_format='{l_bar}{bar}[{elapsed}<{remaining}]'):
         df = nyt_df.loc[[fips]]
         df = process_fips_df(df)
         df = difference_fips_df(df)

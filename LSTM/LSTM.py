@@ -7,7 +7,7 @@ from sklearn.preprocessing import StandardScaler
 import matplotlib.pyplot as plt
 import tensorflow as tf
 
-quantileList = np.linspace(0.1, 0.9, 9)
+_quantileList = np.linspace(0.1, 0.9, 9)
 if platform.system()=='Linux': ### In a session
     import matplotlib
     matplotlib.use('Agg')
@@ -106,10 +106,7 @@ class ConditionalRNN(tf.keras.layers.Layer):
         self.rnn = tf.keras.layers.RNN(cell=self._cell, *args, **kwargs)
         self.dropout = tf.keras.layers.Dropout(categorical_dropout)
 
-        # single cond
-        self.cond_to_init_state_dense_1 = tf.keras.layers.Dense(units=self.units, *args, **kwargs)
-
-        # multi cond
+        # multi cond (Serialization not implemented yet)
         max_num_conditions = 10
         self.multi_cond_to_init_state_dense = []
         for i in range(max_num_conditions):
@@ -135,7 +132,12 @@ class ConditionalRNN(tf.keras.layers.Layer):
             raise Exception('Only GRU, LSTM and RNN are supported as cells.')
         return initial_cond
 
-    def __call__(self, inputs, *args, **kwargs):
+    def build(self, input_shape):
+        self.categorical_W = self.add_weight(name='categorical_kernel', shape=(input_shape[1][-1], self.units), initializer='glorot_uniform', trainable=True)
+        self.categorical_b = self.add_weight(name='categorical_bias', shape=(self.units,), initializer='zeros', trainable=True)
+        super().build(input_shape)
+
+    def call(self, inputs, *args, **kwargs):
         """
         :param inputs: List of n elements:
                     - [0] 3-D Tensor with shape [batch_size, time_steps, input_dim]. The inputs.
@@ -158,7 +160,8 @@ class ConditionalRNN(tf.keras.layers.Layer):
         else:
             cond = self._standardize_condition(cond[0])
             if cond is not None:
-                self.init_state = self.cond_to_init_state_dense_1(cond)
+                # self.init_state = self.cond_to_init_state_dense_1(cond)
+                self.init_state = tf.matmul(cond, self.categorical_W) + self.categorical_b
                 self.init_state = tf.unstack(self.init_state, axis=0)
         for i in range(2):
             self.init_state[i] = self.dropout(self.init_state[i])
@@ -171,7 +174,7 @@ class ConditionalRNN(tf.keras.layers.Layer):
             return out
 
 class SingleLayerConditionalRNN(tf.keras.Model):
-    def __init__(self, NUM_CELLS, target_size, quantiles=quantileList,
+    def __init__(self, NUM_CELLS, target_size, quantiles=_quantileList,
                 categorical_dropout=0.0, timeseries_dropout=0.0, cell='LSTM',
                 sigma=1., mu=0., ver='frozen', **kwargs):
         super().__init__()
@@ -392,7 +395,7 @@ def normalizer(scaler, X):
         raise ValueError(f"Incompatible dimension of input ndarray. Input dimension: {len(X)}")
     return X
 
-def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, BATCH_SIZE=64, BUFFER_SIZE=100000, cache=True):
+def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, BATCH_SIZE=64, BUFFER_SIZE=100000, cache=False):
     """
     Generate training and validation datasets in the format of tensorflow Dataset class.
 
@@ -404,8 +407,8 @@ def load_Dataset(X_train, C_train, y_train, X_val=None, C_val=None, y_val=None, 
       BATCH_SIZE: int (default=64)
         Size of each batch.
         Popular BATCH_SIZE: 32, 64, 128
-        Oftentimes smaller BATCH_SIZE perform better.
-      BUFFER_SIZE: int (default=10000)
+        Oftentimes smaller BATCH_SIZE performs better.
+      BUFFER_SIZE: int (default=100000)
         Size of buffer. Determines the quality of permutation.
       cache: bool (default=True)
         True if cache training data on the memory. Turn it False if there is memory issue.
@@ -503,15 +506,15 @@ def LSTM_fit(train_data, val_data=None, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp_c
                                             categorical_dropout=dp_ctg,
                                             timeseries_dropout=dp_ts,
                                             cell=celltype, sigma=sigma, mu=mu)
-                                            for _ in range(len(quantileList))]
+                                            for _ in range(len(_quantileList))]
     history_qntl =[]
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
 
-    for i in range(len(quantileList)):
-        model_qntl[i].compile(optimizer=optimizer, loss=lambda y, y_p: quantileLoss(quantileList[i], y, y_p))
+    for i in range(len(_quantileList)):
+        model_qntl[i].compile(optimizer=optimizer, loss=lambda y, y_p: quantileLoss(_quantileList[i], y, y_p))
         print(f'Quantile={10*(i+1)} is trained')
 
-    for i in range(len(quantileList)):
+    for i in range(len(_quantileList)):
         if val_data is None:
             history = model_qntl[i].fit(train_data, epochs=EPOCHS, steps_per_epoch=2500, callbacks=callbacks, **kwargs)
         else:
@@ -582,7 +585,7 @@ def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbac
                                     cell=celltype, sigma=sigma, mu=mu, ver=ver)
     optimizer = tf.keras.optimizers.Adam(learning_rate=hparam["lr"])
 
-    model.compile(optimizer=optimizer, loss=lambda y, y_p: MultiQuantileLoss(quantileList, target_size, y, y_p))
+    model.compile(optimizer=optimizer, loss=lambda y, y_p: MultiQuantileLoss(_quantileList, target_size, y, y_p))
     logger.info('Training multi-output model.')
 
     if val_data is None:
@@ -599,13 +602,13 @@ def LSTM_fit_mult(train_data, val_data=None, hparam=None, monitor=False, callbac
 def LSTM_finder(train_data, val_data, lr=0.001, NUM_CELLS=128, EPOCHS=10, dp=0.2):
     target_size = train_data.element_spec[1].shape[1]
     
-    model_qntl = [SingleLayerConditionalRNN(NUM_CELLS, target_size, dropout=dp) for _ in range(len(quantileList))]
+    model_qntl = [SingleLayerConditionalRNN(NUM_CELLS, target_size, dropout=dp) for _ in range(len(_quantileList))]
     history_qntl =[]
     optimizer = tf.keras.optimizers.Adam(learning_rate=lr)
-    lr_finder = [LRFinder() for _ in range(len(quantileList))]
+    lr_finder = [LRFinder() for _ in range(len(_quantileList))]
 
-    for i in range(len(quantileList)):
-        model_qntl[i].compile(optimizer=optimizer, loss=lambda y_p, y: quantileLoss(quantileList[i], y_p, y))
+    for i in range(len(_quantileList)):
+        model_qntl[i].compile(optimizer=optimizer, loss=lambda y_p, y: quantileLoss(_quantileList[i], y_p, y))
         print(f'Quantile={10*(i+1)} is trained')
         history = model_qntl[i].fit(train_data, epochs=EPOCHS, validation_data=val_data, validation_steps=300, callbacks=[lr_finder[i]])
 

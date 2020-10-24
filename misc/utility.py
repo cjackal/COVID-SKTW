@@ -1,8 +1,14 @@
 import os
-import git
+from pathlib import Path
+from inspect import getsourcefile
 from functools import reduce
 
-_homedir = get_homedir()
+def pbar(iterable, **kwargs):
+    try:
+        from tqdm import tqdm
+        return tqdm(iterable, **kwargs)
+    except ModuleNotFoundError:
+        return iterable
 
 def correct_FIPS(fips):
     # We need to add back the leading zero to some of the FIPS codes
@@ -14,12 +20,14 @@ def correct_FIPS(fips):
 
 def get_homedir(verbose=False):
     # Simply get the root directory
-    homedir = git.Repo("./", search_parent_directories=True).working_dir
+    homedir = Path(os.path.abspath(getsourcefile(lambda:0))).parents[1]
     if verbose:
         print(homedir)
     return homedir
 
-def get_FIPS(path='/misc/FIPS_mapping.txt', reduced=False):
+_homedir = get_homedir()
+
+def get_FIPS(path='misc/FIPS_mapping.txt', reduced=False):
     """
     Load FIPS mapping in dictionary format of the form {alias fips:genuine fips}.
     Designed to have two usage:
@@ -116,7 +124,7 @@ def to_multi_idx(df, fipslabel='fips', datelabel='date'):
 
     return df.rename(index=reindexer).rename_axis('id').drop([datelabel, fipslabel], axis=1)
 
-def prediction_to_submission(dfs, base='sample_submission.csv',
+def reformat_prediction(dfs, base='frame.csv',
                             fipslabel='fips', datelabel='date',
                             force_positive=True, force_increasing=True):
     import pandas as pd
@@ -143,15 +151,15 @@ def prediction_to_submission(dfs, base='sample_submission.csv',
     
     return df_base.reset_index()
 
-def gen_submission(date_st, date_ed, FIPS='/misc/FIPS_mapping.txt',
-                path='/LSTM/preprocessing/sample_submission.csv', file=True):
+def gen_frame(date_st, date_ed, FIPS='misc/FIPS_mapping.txt',
+                path='LSTM/preprocessing/frame.csv', file=True):
     import pandas as pd
 
     with open(os.path.join(_homedir, FIPS), 'r') as f:
         dic = eval(f.read())
     FIPS_sample = sorted(set(dic.values()))
     dwin = pd.date_range(start=date_st, end=date_ed)
-    ind = ['-'.join(dt.strftime('%Y-%m-%d'), str(int(fips))) for dt in dwin for fips in FIPS_sample]
+    ind = ['-'.join([dt.strftime('%Y-%m-%d'), str(int(fips))]) for dt in dwin for fips in FIPS_sample]
     column = [str(10*i) for i in range(1,10)]
     df = pd.DataFrame(0.00, index=ind, columns=column).reset_index()
     df.rename(columns={'index':'id'}, inplace=True)

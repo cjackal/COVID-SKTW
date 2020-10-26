@@ -1,8 +1,8 @@
 {
     "date_generated": "2020-01-11",
     "start_train": null,
-    "end_train": "2020-10-14",
-    "start_date": "2020-10-15",
+    "end_train": "2020-10-24",
+    "start_date": "2020-10-25",
     "end_date": null,
     "out_files": "out/test.csv"
 }

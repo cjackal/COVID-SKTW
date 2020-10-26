@@ -1,3 +1,3 @@
-# condLSTM-Q COVID-19 Prediction Model
+# COVID-19 Prediction Model condLSTM-Q
 
 ## Overview

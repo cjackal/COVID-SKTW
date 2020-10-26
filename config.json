@@ -1,8 +1,8 @@
 {
-    "date_generated": "2020-01-10",
+    "date_generated": "2020-01-11",
     "start_train": null,
-    "end_train": "2020-07-14",
-    "start_date": "2020-07-15",
+    "end_train": "2020-05-14",
+    "start_date": "2020-05-15",
     "end_date": null,
-    "out_files": "submissions/LSTM_test.csv"
+    "out_files": "out/LSTM_test.csv"
 }

@@ -17,6 +17,20 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
     PATH_PREP = os.path.join(homedir, 'tmp', 'preprocessing', tmp)
     logger.info(f"Using preprocessed data in {PATH_PREP}")
 
+    with open(config_name, 'r') as f:
+        config_dict = json.load(f)
+    hparam = {
+        "history_size": 7,          # Size of history window
+        "NUM_CELLS": 128,           # Number of cells in LSTM layer
+        "lr": 0.001,                # Learning rate
+        "dp_ctg": 0.2,              # Dropout rate(categorical inputs)
+        "dp_ts" : 0.2,              # Dropout rate(timeseries inputs)
+        "EPOCHS": 15,               # Number of epochs for training
+    }
+    if 'hparam' in config_dict:
+        for key in config_dict['hparam']:
+            hparam[key] = config_dict['hparam'][key]
+
     with open(os.path.join(PATH_PREP, 'config.json')) as f:
         config_dict = json.load(f)
 
@@ -45,14 +59,6 @@ def LSTM_trainer(config_name, tmp, ver='frozen'):
     timedelta = max(0, (date_ed - config_st).days + 1)
 
     split_ratio = None              # Training-validation splitting ratio
-    hparam = {
-        "history_size": 7,          # Size of history window
-        "NUM_CELLS": 128,           # Number of cells in LSTM layer
-        "lr": 0.001,                # Learning rate
-        "dp_ctg": 0.2,              # Dropout rate(categorical inputs)
-        "dp_ts" : 0.2,              # Dropout rate(timeseries inputs)
-        "EPOCHS": 15,               # Number of epochs for training
-    }
     target_size = (config_ed - date_ed).days             # Size of target window
     step_size = 1
     ############################################################################

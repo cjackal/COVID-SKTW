@@ -4,6 +4,7 @@ import logging
 import json
 import numpy as np
 import pandas as pd
+from io import BytesIO
 from bs4 import BeautifulSoup
 from .misc.utility import pbar, get_homedir, correct_FIPS
 
@@ -78,15 +79,18 @@ def Scrapper():
     pd.concat(dfs).to_csv(os.path.join(datadir, 'nyt_us_counties_daily.csv'))
 
     logger.info('Download and preprocess HHS policy data.')
-    r = BeautifulSoup(requests.get('https://healthdata.gov/dataset/covid-19-state-and-county-policy-orders').text, "html5lib")
-    url = r.find_all("a", class_="data-link")[0]['href']
+    # r = BeautifulSoup(requests.get('https://healthdata.gov/dataset/covid-19-state-and-county-policy-orders').text, "html5lib")
+    # url = r.find_all("a", class_="data-link")[0]['href']
+    req = requests.get('https://healthdata.gov/api/views/gyqz-9u7n/rows.csv?accessType=DOWNLOAD')
 
     with open(os.path.join(sourcedir, 'misc', 'po_code_state_map.json')) as f:
         po_code_state_map = json.load(f)
     pc_to_fips = {v['postalCode']: int(''.join((v['fips'], '000')))
                      for v in po_code_state_map}
 
-    hhs_df = pd.read_csv(url, parse_dates=['date'])
+    hhs_df = pd.read_csv(BytesIO(req.content))
+    hhs_df['date'] = hhs_df['date'].apply(lambda x: '20'+x[2:] if x[:2]=='00' else x)
+    hhs_df['date'] = hhs_df['date'].apply(pd.to_datetime)
     hhs_df['policy_type'] = hhs_df['policy_type'].apply(lambda x: ''.join([s.capitalize() for s in x.split(' ')]))
     hhs_df['start_stop'] = hhs_df['start_stop'].apply(lambda x: (x=='start'))
     for i in hhs_df.index:

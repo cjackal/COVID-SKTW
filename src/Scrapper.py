@@ -102,6 +102,14 @@ def Scrapper():
     hhs_df = hhs_df.sort_values('date')
     hhs_df.to_csv(os.path.join(datadir, 'state_policy.csv'), index=False)
 
+    logger.info('Download and preprocess CDC vaccination data.')
+    req = requests.get('https://data.cdc.gov/api/views/unsk-b7fc/rows.csv?accessType=DOWNLOAD')
+    cdc_df = pd.read_csv(BytesIO(req.content), parse_dates=['Date'])[['Date', 'Location', 'Admin_Per_100k_12Plus', 'Admin_Per_100k_18Plus','Admin_Per_100k_65Plus']]
+    cdc_df = cdc_df[cdc_df['Location'].isin(set(pc_to_fips))]
+    cdc_df['fips_code'] = cdc_df['Location'].apply(lambda x: pc_to_fips.get(x,'XX'))
+    cdc_df = cdc_df.sort_values('Date')
+    cdc_df.to_csv(os.path.join(datadir, 'vaccination.csv'), index=False)
+
     now = pd.Timestamp.utcnow().strftime("%Y%m%d")
     with open(os.path.join(datadir, 'date.txt'), 'w') as f:
         print(now, file=f)

@@ -2,6 +2,7 @@ import os
 import requests
 import logging
 import json
+import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from io import BytesIO
@@ -12,6 +13,8 @@ homedir = get_homedir()
 datadir = os.path.join(homedir, 'data')
 sourcedir = os.path.join(homedir, 'src')
 logger = logging.getLogger('main.Scrapper')
+
+num_cores = mp.cpu_count()
 
 def add_missing_date_rows(df, row, low_date, max_date):
     day_delta = np.timedelta64(1,'D')
@@ -51,6 +54,11 @@ def difference_fips_df(df):
     df['deaths'] = np.clip(new_deaths, 0, np.inf)
     return df
 
+def motality_preproc(nyt_df, fips):
+    df = nyt_df.loc[[fips]]
+    df = process_fips_df(df)
+    return difference_fips_df(df)
+
 def Scrapper():
     logger.info('Download DL mobility data.')
     req = requests.get("https://raw.githubusercontent.com/descarteslabs/DL-COVID-19/master/DL-us-mobility-daterow.csv")
@@ -68,19 +76,12 @@ def Scrapper():
     fips_total = nyt_df.index.unique()
     logger.debug(f'# of counties: {len(fips_total)}')
 
-    dfs = []
     logger.debug('Filling out missing dates.')
-    for i, fips in pbar(enumerate(fips_total), desc='Processing NYT motality',
-        total=len(fips_total),bar_format='{l_bar}{bar}[{elapsed}<{remaining}]'):
-        df = nyt_df.loc[[fips]]
-        df = process_fips_df(df)
-        df = difference_fips_df(df)
-        dfs.append(df)
-    pd.concat(dfs).to_csv(os.path.join(datadir, 'nyt_us_counties_daily.csv'))
+    with mp.Pool(num_cores) as pool:
+        dfs = pd.concat(pool.starmap(motality_preproc, pbar([(nyt_df, fips) for fips in fips_total], desc='Processing NYT motality', total=len(fips_total), bar_format='{l_bar}{bar}[{elapsed}<{remaining}]')))
+    dfs.to_csv(os.path.join(datadir, 'nyt_us_counties_daily.csv'))
 
     logger.info('Download and preprocess HHS policy data.')
-    # r = BeautifulSoup(requests.get('https://healthdata.gov/dataset/covid-19-state-and-county-policy-orders').text, "html5lib")
-    # url = r.find_all("a", class_="data-link")[0]['href']
     req = requests.get('https://healthdata.gov/api/views/gyqz-9u7n/rows.csv?accessType=DOWNLOAD')
 
     with open(os.path.join(sourcedir, 'misc', 'po_code_state_map.json')) as f:
@@ -104,10 +105,11 @@ def Scrapper():
 
     logger.info('Download and preprocess CDC vaccination data.')
     req = requests.get('https://data.cdc.gov/api/views/unsk-b7fc/rows.csv?accessType=DOWNLOAD')
-    cdc_df = pd.read_csv(BytesIO(req.content), parse_dates=['Date'])[['Date', 'Location', 'Admin_Per_100k_12Plus', 'Admin_Per_100k_18Plus','Admin_Per_100k_65Plus']]
+    cdc_df = pd.read_csv(BytesIO(req.content), parse_dates=['Date'])[['Date', 'Location', 'Admin_Per_100K','Admin_Per_100k_65Plus', 'Administered_Dose1_Pop_Pct', 'Administered_Dose1_Recip_65PlusPop_Pct', 'Series_Complete_Pop_Pct', 'Series_Complete_65PlusPop_Pct']]
+    cdc_df.rename(columns={'Date': 'date'}, inplace=True)
     cdc_df = cdc_df[cdc_df['Location'].isin(set(pc_to_fips))]
     cdc_df['fips_code'] = cdc_df['Location'].apply(lambda x: pc_to_fips.get(x,'XX'))
-    cdc_df = cdc_df.sort_values('Date')
+    cdc_df = cdc_df.sort_values('date')
     cdc_df.to_csv(os.path.join(datadir, 'vaccination.csv'), index=False)
 
     now = pd.Timestamp.utcnow().strftime("%Y%m%d")
